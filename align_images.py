@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import os
 
 MAX_FEATURES = 500
 GOOD_MATCH_PERCENT = 0.15
@@ -95,7 +96,82 @@ def align_images_v2(img, template_img, result_path="Output"):
 
     # Use this matrix to transform the
     # colored image wrt the reference image.
-    transformed_img = cv2.warpPerspective(img1,
+    transformed_img = cv2.warpPerspective(img,
                                           homography, (width, height))
 
     return transformed_img
+
+
+def correct_table_skew(img, result_path="Output"):
+    # grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # grayscale = cv2.bitwise_not(grayscale)
+    # (thresh, img_bin) = cv2.threshold(grayscale, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    # cv2.imwrite(os.path.join(result_path, "img_bin.jpg"), img_bin)
+    # coordinates = np.column_stack(np.where(img_bin > 0))
+    # ang = cv2.minAreaRect(coordinates)[-1]
+    #
+    # if ang < -45:
+    #     ang = -(90 + ang)
+    # else:
+    #     ang = -ang
+    #
+    # height, width = img.shape[:2]
+    #
+    # center_img = (width / 2, height / 2)
+    # rotationMatrix = cv2.getRotationMatrix2D(center_img, ang, 1.0)
+    #
+    # rotated_img = cv2.warpAffine(img, rotationMatrix, (width, height), borderMode=cv2.BORDER_REPLICATE,
+    #                              flags=cv2.INTER_CUBIC)
+
+    grayscale_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    (thresh, img_bin) = cv2.threshold(grayscale_img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    img_bin_inv = cv2.bitwise_not(img_bin)  # 255 - img_bin  # Invert the image
+
+    cv2.imwrite(os.path.join(result_path, "img_bin.jpg"), img_bin_inv)
+
+    kernel_length_verti = np.array(grayscale_img).shape[1] // 140
+    kernel_length_hori = np.array(grayscale_img).shape[1] // 80
+
+    verticle_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, kernel_length_verti))
+    hori_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_length_hori, 1))
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+
+    img_temp1 = cv2.erode(img_bin_inv, verticle_kernel, iterations=3)
+    verticle_lines_img = cv2.dilate(img_temp1, verticle_kernel, iterations=3)
+
+    img_temp2 = cv2.erode(img_bin_inv, hori_kernel, iterations=3)
+    horizontal_lines_img = cv2.dilate(img_temp2, hori_kernel, iterations=3)
+
+    alpha = 0.5
+    beta = 1.0 - alpha
+
+    img_final_bin = cv2.addWeighted(verticle_lines_img, alpha, horizontal_lines_img, beta, 0.0)
+    cv2.imwrite(os.path.join(result_path, "img_final_bin.jpg"), img_final_bin)
+
+    img_final_bin = cv2.erode(~img_final_bin, kernel, iterations=3)
+    cv2.imwrite(os.path.join(result_path, "img_final_bin_inverted.jpg"), img_final_bin)
+
+    (thresh, img_final_bin) = cv2.threshold(img_final_bin, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+
+    cv2.imwrite(os.path.join(result_path, "img_final_bin_inverted_threshed.jpg"), img_final_bin)
+    img_final_bin = cv2.bitwise_not(img_final_bin)
+    cv2.imwrite(os.path.join(result_path, "img_final_bin_inverted_1.jpg"), img_final_bin)
+
+    coordinates = np.column_stack(np.where(img_final_bin > 0))
+    ang = cv2.minAreaRect(coordinates)[-1]
+
+    if ang < -45:
+        ang = -(90 + ang)
+    else:
+        ang = -ang
+
+    height, width = img.shape[:2]
+
+    center_img = (width / 2, height / 2)
+    rotationMatrix = cv2.getRotationMatrix2D(center_img, ang, 1.0)
+
+    rotated_img = cv2.warpAffine(img, rotationMatrix, (width, height), borderMode=cv2.BORDER_REPLICATE,
+                                 flags=cv2.INTER_CUBIC)
+    return rotated_img

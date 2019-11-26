@@ -1,8 +1,9 @@
 import helpers
 import os
 import cv2
-
-from align_images import alignImages
+import numpy as np
+from align_images import alignImages, correct_table_skew
+from extracting_data import extract_data
 
 
 def save_align_images_result():
@@ -19,11 +20,26 @@ def save_align_images_result():
     print("Estimated homography : \n", h)
 
 
-template_input_path = r"InputData\TemplateData\part1_1.jpg"
-input_path = r"InputData\Data\page_1.jpg"
+# input_path = r"InputData\Data\page_1.jpg"
+# output_path = r"Output"
+#
+#main_table_img_p2 = helpers.extract_main_table_part2(input_path, output_path)
+#helpers.extract_table_rows(main_table_img_p2, output_path)
+# img = cv2.imread(input_path)
+# cv2.imwrite(os.path.join(output_path, "img.jpg"), img)
+# corrected_img = correct_table_skew(img)
+# cv2.imwrite(os.path.join(output_path, "correction_of_skew.jpg"), corrected_img)
+# input_path = r"InputData\Data\page_"
+# output_path = r"Output\ExtractingMainTable"
+# idxs = np.array(range(1, 21))
+# filename_ext = ".jpg"
+# odd_idxs = idxs[idxs % 2 == 0]
+# for idx in odd_idxs:
+#     filename_output_path = os.path.join(output_path, "main_table_p2_" + str(idx) + filename_ext)
+#     filename_input_path = input_path + str(idx) + filename_ext
+#     helpers.extract_main_table_part2(filename_input_path, filename_output_path)
+
+
+input_path = r"InputData\Data"
 output_path = r"Output"
-# img = cv2.imread(input_path, 0)
-#helpers.detect_boxes(input_path, output_path)
-#helpers.detect_boxes_v3(input_path, output_path)
-#align_images_v2(template_input_path, template_input_path, output_path)
-helpers.extract_main_table(input_path, output_path)
+extract_data(input_path, output_path)
