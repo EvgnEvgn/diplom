@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 from align_images import alignImages, correct_table_skew
-from extracting_data import extract_data
+from extracting_data import extract_data_from_main_table
 
 
 def save_align_images_result():
@@ -42,4 +42,4 @@ def save_align_images_result():
 
 input_path = r"InputData\Data"
 output_path = r"Output"
-extract_data(input_path, output_path)
+extract_data_from_main_table(input_path, output_path)
