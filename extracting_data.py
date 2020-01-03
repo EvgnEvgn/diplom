@@ -3,9 +3,14 @@ import os
 import numpy as np
 import cv2
 from neural_nets.TwoLayerNet.two_layer_net import TwoLayerNet
-from neural_nets.TwoLayerNet.two_layer_net_test import find_best_net
+from neural_nets.TwoLayerNet.two_layer_net_test import find_best_two_layer_net
+from neural_nets.FullyConnectedNet.fully_connected_net_test import find_best_digits_fully_connected_model
 import mnist
 import matplotlib.pyplot as plt
+from neural_nets.model_utils import *
+from neural_nets.data_utils import *
+from align_images import *
+import string
 
 
 def extract_data_from_main_table(input_path, output_path):
@@ -48,7 +53,7 @@ def segment_digits(img):
     (thresh, img_bin) = cv2.threshold(grayscale, 128, 255, cv2.THRESH_BINARY_INV)
     # img_bin = cv2.bitwise_not(img_bin)
 
-    img_dilated = cv2.dilate(img_bin, None, iterations=2)
+    img_dilated = cv2.dilate(img_bin, np.ones((2, 2)), iterations=5)
     cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_dilated)
 
     contours, hierarchy = cv2.findContours(img_dilated.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -57,49 +62,134 @@ def segment_digits(img):
     idx = 0
     digits = []
     for rect in rects:
-        # Draw the rectangles
-        # cv2.rectangle(img, (rect[0], rect[1]), (rect[0] + rect[2], rect[1] + rect[3]), (0, 255, 0), 3)
-        # Make the rectangular region around the digit
-        # leng = int(rect[3] * 1.6)
-        # pt1 = int(rect[1] + rect[3] // 2 - leng // 2)
-        # pt2 = int(rect[0] + rect[2] // 2 - leng // 2)
-        # roi = img_bin[pt1:pt1 + leng, pt2:pt2 + leng]
-
         x, y, w, h = rect
-        symbol = img_bin[y:y + h, x:x + w]
-        symbol = cv2.resize(symbol, (20, 20), interpolation=cv2.INTER_BITS)
-        symbol = np.pad(symbol, ((4, 4), (4, 4)), "constant")
-        symbol = cv2.dilate(symbol, np.ones((2,2), dtype=np.uint8), iterations=1)
-        digits.append(symbol)
+        digit = img_bin[y:y + h, x:x + w]
+        digit = cv2.resize(digit, (20, 20), interpolation=cv2.INTER_AREA)
+        digit = np.pad(digit, ((4, 4), (4, 4)), "constant")
+        # digit = cv2.resize(digit, (28, 28), interpolation=cv2.INTER_AREA)
+        digit = cv2.dilate(digit, np.ones((1, 1), dtype=np.uint8))
+        digits.append(digit)
         # symbol = cv2.dilate(symbol, (3, 3))
 
-        cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), symbol)
+        cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), digit)
         idx += 1
-        # Resize the image
-        # roi = cv2.resize(roi, (28, 28), interpolation=cv2.INTER_AREA)
-        # roi = cv2.dilate(roi, (3, 3))
-        # Calculate the HOG features
-        # roi_hog_fd = hog(roi, orientations=9, pixels_per_cell=(14, 14), cells_per_block=(1, 1), visualise=False)
-        # nbr = clf.predict(np.array([roi_hog_fd], 'float64'))
-        # cv2.putText(im, str(int(nbr[0])), (rect[0], rect[1]), cv2.FONT_HERSHEY_DUPLEX, 2, (0, 255, 255), 3)
 
     return digits
 
 
-img = cv2.imread("Output/ExtractedColumns/5_col/11.jpg")
+def compute_skew(image):
+    image = cv2.bitwise_not(image)
+    height, width = image.shape
 
-digits = segment_digits(img)
-digits = np.array(digits)
-plt.subplot(2,1,1)
-plt.hist(digits[0])
+    edges = cv2.Canny(image, 150, 200, 3, 5)
+    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=width / 2.0, maxLineGap=20)
+    angle = 0.0
+    nlines = lines.size
+    for x1, y1, x2, y2 in lines[0]:
+        angle += np.arctan2(y2 - y1, x2 - x1)
+    return angle / nlines
 
-mnist_digits = mnist.test_images()[:10]
-labels = mnist.test_labels()[:10]
-plt.subplot(2,1,2)
-plt.hist(mnist_digits[6])
 
-plt.show()
-# digits = np.array(digits)
-# neural_net = find_best_net()
-# predicted = np.argmax(neural_net.loss(digits), axis=1)
-# print(predicted)
+def deskew(image, angle):
+    image = cv2.bitwise_not(image)
+    non_zero_pixels = cv2.findNonZero(image)
+    center, wh, theta = cv2.minAreaRect(non_zero_pixels)
+
+    root_mat = cv2.getRotationMatrix2D(center, angle, 1)
+    rows, cols = image.shape
+    rotated = cv2.warpAffine(image, root_mat, (cols, rows), flags=cv2.INTER_CUBIC)
+
+    return cv2.getRectSubPix(rotated, (cols, rows), center)
+
+
+def deskew_v2(img, size):
+    m = cv2.moments(img)
+    if abs(m['mu02']) < 1e-2:
+        # no deskewing needed.
+        return img.copy()
+    # Calculate skew based on central momemts.
+    skew = m['mu11'] / m['mu02']
+    # Calculate affine transform to correct skewness.
+    M = np.float32([[1, skew, -0.5 * size * skew], [0, 1, 0]])
+    # Apply affine transform
+    img = cv2.warpAffine(img, M, (size, size), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
+    return img
+
+
+def segment_letters(img):
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # grayscale = cv2.GaussianBlur(grayscale, (3, 3), 0)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "gaussian_blur.jpg"), grayscale)
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    erode_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    kernel2 = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    (thresh, img_bin) = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "threshold_img_bin.jpg"), img_bin)
+
+    img_dilated = cv2.dilate(img_bin, dilate_kernel, iterations=2)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+
+    img_eroded = cv2.erode(img_dilated, erode_kernel, iterations=2)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_eroded.jpg"), img_eroded)
+
+    #img_dilated = cv2.dilate(img_eroded, kernel, iterations=1)
+    #cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+    contours, hierarchy = cv2.findContours(img_eroded.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects = [cv2.boundingRect(ctr) for ctr in contours]
+    idx = 0
+    letters = []
+    for rect in rects:
+        x, y, w, h = rect
+        if w > 20 and h > 10:
+            letter = img_eroded[y:y + h, x:x + w]
+            # letter = cv2.resize(letter, (20, 20), interpolation=cv2.INTER_AREA)
+            # letter = np.pad(letter, ((4, 4), (4, 4)), "constant")
+            letter = cv2.resize(letter, (28, 28), interpolation=cv2.INTER_AREA)
+            letter = cv2.dilate(letter, kernel2)
+            letters.append(letter)
+            # symbol = cv2.dilate(symbol, (3, 3))
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), letter)
+            idx += 1
+
+    return letters
+
+
+def process_orig_digit_img(orig_digits_img):
+    scaled_digits = np.divide(orig_digits_img, 255)
+    one_dim_digits = scaled_digits.reshape(len(orig_digits_img), -1)
+
+    return one_dim_digits
+
+
+def predict_digits():
+    img = cv2.imread("Output/ExtractedColumns/5_col/15.jpg")
+
+    digits = segment_digits(img)
+    digits = process_orig_digit_img(digits)
+
+    neural_net = get_digits_fully_connected_net_model()
+    predicted = np.argmax(neural_net.loss(digits), axis=1)
+
+    print(predicted)
+
+
+def predict_letters_using_tf():
+    alphabet = dict((idx, key) for idx, key in enumerate(string.ascii_lowercase))
+    img = cv2.imread("Output/ExtractedColumns/4_col/193.jpg")
+    letters = segment_letters(img)
+    #x_train, y_train, x_val, y_val, x_test, y_test = get_emnist_letters_data_TF()
+    letters = preprocess_letters_img_for_predictive_model(letters, model_input_shape=(len(letters), 28, 28, 1))
+
+    letters_model = get_letters_CNN_tf_model()
+    predicted = letters_model.predict_classes(letters)
+    print(alphabet[predicted[0]])
+
+    #score = letters_model.evaluate(x_test, y_test, verbose=0)
+    #print(score)
+
+
+predict_letters_using_tf()
+
+

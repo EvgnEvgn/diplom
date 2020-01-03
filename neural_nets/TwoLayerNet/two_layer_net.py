@@ -34,7 +34,9 @@ class TwoLayerNet(object):
         """
         self.params = {}
         self.reg = reg
-
+        self.val_accuracy = None
+        self.train_accuracy = None
+        self.test_accuracy = None
         ############################################################################
         # ЗАДАНИЕ: Инициализировать веса и смещения двухслойной сети. Веса         #
         # должны инициализироваться с нормальным законом с центром в 0,0 и со      #
@@ -45,6 +47,9 @@ class TwoLayerNet(object):
         ############################################################################
         self.params["W1"] = np.random.normal(0.0, weight_scale, (input_dim, hidden_dim))
         self.params["W2"] = np.random.normal(0.0, weight_scale, (hidden_dim, num_classes))
+
+        # self.params["W1"] = np.random.randn(input_dim, hidden_dim) * np.sqrt(2.0/input_dim)
+        # self.params["W2"] = np.random.randn(hidden_dim, num_classes) * np.sqrt(2.0/hidden_dim)
         self.params["b1"] = np.zeros(hidden_dim, dtype=float)
         self.params["b2"] = np.zeros(num_classes, dtype=float)
         ############################################################################
