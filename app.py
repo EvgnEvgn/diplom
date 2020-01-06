@@ -40,6 +40,6 @@ def save_align_images_result():
 #     helpers.extract_main_table_part2(filename_input_path, filename_output_path)
 
 
-input_path = r"InputData\Data"
+input_path = r"InputData/Data"
 output_path = r"Output"
 extract_data_from_main_table(input_path, output_path)

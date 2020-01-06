@@ -20,13 +20,13 @@ def init_letters_CNN_model():
         tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3), activation='relu',
                                strides=(1, 1), padding='same',
                                kernel_initializer=initializer),
-        tf.keras.layers.BatchNormalization(),
+        #tf.keras.layers.BatchNormalization(),
         tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=None, padding='same'),
 
         tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3), activation='relu',
                                strides=(1, 1), padding='same',
                                kernel_initializer=initializer),
-        tf.keras.layers.BatchNormalization(),
+        #tf.keras.layers.BatchNormalization(),
 
         tf.keras.layers.MaxPool2D(pool_size=(2, 2), strides=None, padding='same'),
 
@@ -140,7 +140,7 @@ for i in range(0, 10):
 print(best_params)
 print(best_train)
 best_model.fit(x_train, y_train, batch_size=128, epochs=10, verbose=1, validation_data=(x_val, y_val))
-best_model.save(filepath=os.path.join(config.MODELS_DIR, config.letters_CNN_tf))
+#best_model.save(filepath=os.path.join(config.MODELS_DIR, config.letters_CNN_tf))
 # model = init_letters_CNN_model()
 # model.compile(loss='sparse_categorical_crossentropy',
 #               optimizer='adam',

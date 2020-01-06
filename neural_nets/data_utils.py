@@ -1,7 +1,8 @@
 import mnist
-from neural_nets.features_utils import hog_feature, extract_features
+# from neural_nets.features_utils import hog_feature, extract_features
 import numpy as np
 import emnist
+from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from tensorflow.keras.utils import to_categorical
 
@@ -13,17 +14,7 @@ def get_emnist_letters_data_TF(num_training=122000, num_validation=2800, num_tes
     y_train = np.subtract(y_train, 1)
     y_test = np.subtract(y_test, 1)
 
-    # Выборка данных
-    mask = list(range(num_training, num_training + num_validation))
-    x_val = x_train[mask]
-    y_val = y_train[mask]
-    mask = list(range(num_training))
-    x_train = x_train[mask]
-    y_train = y_train[mask]
-    mask = list(range(num_test))
-    x_test = x_test[mask]
-    y_test = y_test[mask]
-
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.05)
     x_train = np.divide(x_train, 255).astype("float64")
     x_val = np.divide(x_val, 255).astype("float64")
     x_test = np.divide(x_test, 255).astype("float64")
@@ -43,7 +34,15 @@ def preprocess_letters_img_for_predictive_model(letters, model_input_shape):
     return letters_reshaped
 
 
-def get_mist_digits_data_TF(num_training=59000, num_validation=1000, num_test=10000):
+def preprocess_digits_img_for_tf_predictive_model(digits, model_input_shape):
+    digits = np.divide(digits, 255).astype("float64")
+
+    digits = digits.reshape(model_input_shape)
+
+    return digits
+
+
+def get_mnist_digits_data_TF(num_training=59000, num_validation=1000, num_test=10000):
     x_train, y_train, x_val, y_val, x_test, y_test = get_mnist_digits_data_inner(num_training, num_validation, num_test)
     x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
     x_val = x_val.reshape(x_val.shape[0], x_val.shape[1], x_val.shape[2], 1)

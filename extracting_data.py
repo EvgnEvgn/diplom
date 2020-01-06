@@ -1,5 +1,6 @@
 import helpers
 import os
+import sys
 import numpy as np
 import cv2
 from neural_nets.TwoLayerNet.two_layer_net import TwoLayerNet
@@ -11,6 +12,7 @@ from neural_nets.model_utils import *
 from neural_nets.data_utils import *
 from align_images import *
 import string
+from helpers import sort_contours
 
 
 def extract_data_from_main_table(input_path, output_path):
@@ -132,8 +134,8 @@ def segment_letters(img):
     img_eroded = cv2.erode(img_dilated, erode_kernel, iterations=2)
     cv2.imwrite(os.path.join("Output/CroppedImages", "img_eroded.jpg"), img_eroded)
 
-    #img_dilated = cv2.dilate(img_eroded, kernel, iterations=1)
-    #cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+    # img_dilated = cv2.dilate(img_eroded, kernel, iterations=1)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
     contours, hierarchy = cv2.findContours(img_eroded.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     rects = [cv2.boundingRect(ctr) for ctr in contours]
@@ -179,17 +181,140 @@ def predict_letters_using_tf():
     alphabet = dict((idx, key) for idx, key in enumerate(string.ascii_lowercase))
     img = cv2.imread("Output/ExtractedColumns/4_col/193.jpg")
     letters = segment_letters(img)
-    #x_train, y_train, x_val, y_val, x_test, y_test = get_emnist_letters_data_TF()
+    # x_train, y_train, x_val, y_val, x_test, y_test = get_emnist_letters_data_TF()
     letters = preprocess_letters_img_for_predictive_model(letters, model_input_shape=(len(letters), 28, 28, 1))
 
     letters_model = get_letters_CNN_tf_model()
     predicted = letters_model.predict_classes(letters)
     print(alphabet[predicted[0]])
 
-    #score = letters_model.evaluate(x_test, y_test, verbose=0)
-    #print(score)
+    # score = letters_model.evaluate(x_test, y_test, verbose=0)
+    # print(score)
 
 
-predict_letters_using_tf()
+def segment_digits_from_column_1(img):
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
+
+    (thresh, img_bin) = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
+
+    img_dilated = cv2.dilate(img_bin, np.ones((7, 1)), iterations=1)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+
+    erroded = cv2.erode(img_dilated, (10, 10), iterations=1)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "erroded.jpg"), erroded)
+
+    contours, hierarchy = cv2.findContours(erroded.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    (contours, _) = sort_contours(contours)
+
+    rects = [cv2.boundingRect(ctr) for ctr in contours]
+    digits = []
+    for rect in rects:
+        x, y, w, h = rect
+        # remove dot from boxes
+        if w > 5 and h > 5:
+            digit = erroded[y:y + h, x:x + w]
+            digit = np.pad(digit, ((16, 16), (16, 16)), "constant")
+            digit = cv2.resize(digit, (28, 28))
+
+            digits.append(digit)
+
+    return digits
 
 
+def collect_digits_from_col_1():
+    col_path = r"Output/ExtractedColumns/0_col"
+    reshaped_digits = np.zeros((0, 28, 28, 1))
+    paths = np.array([])
+    for path in os.listdir(col_path):
+        full_path = os.path.join(col_path, path)
+        if os.path.isfile(full_path):
+            img = cv2.imread(full_path)
+            digits = segment_digits_from_column_1(img)
+            digits = preprocess_digits_img_for_tf_predictive_model(digits, (len(digits), 28, 28, 1))
+            reshaped_digits = np.concatenate((reshaped_digits, digits))
+            path_to_digits = [path] * len(digits)
+            paths = np.concatenate((paths, path_to_digits))
+
+    return reshaped_digits, paths
+
+
+def save_labels(labels, filename):
+    file = open(os.path.join(config.ROOT_DIR, filename), "wb")
+    pickle.dump(labels, file)
+
+
+def load_labels(filename):
+    file_path = os.path.join(config.ROOT_DIR, filename)
+    try:
+        file = open(file_path, "rb")
+        labels = pickle.load(file)
+    except FileNotFoundError:
+        return None
+    return labels
+
+
+def save_extracted_data_with_labels(extracted_data, filename):
+    file = open(os.path.join(config.ROOT_DIR, filename), "wb")
+    pickle.dump(extracted_data, file)
+
+
+def load_extracted_data_with_labels(filename):
+    file_path = os.path.join(config.ROOT_DIR, filename)
+    try:
+        file = open(file_path, "rb")
+        extracted_data = pickle.load(file)
+    except FileNotFoundError:
+        return None
+    return extracted_data
+
+
+def check_model_accuracy_digits_from_col_1(digits, paths):
+    true_labels = []
+    keys = [i for i in range(48, 58)]
+    model = get_digits_cnn_dg_tf_model()
+    extracted_data = {}
+    # true_labels = load_labels("digit_labels_col_1.dat")
+
+    digits = digits[:50]
+
+    if len(true_labels) == 0:
+        for idx, digit in enumerate(digits):
+            if idx == 12 or idx == 21:
+                cv2.imshow('{0} - type digit'.format(paths[idx]), digit)
+                key = cv2.waitKey(0)
+
+                if key == 27:  # (escape to quit)
+                    # TODO:Save true data
+                    sys.exit()
+                elif key in keys:
+                    true_labels.append(int(chr(key)))
+                cv2.destroyAllWindows()
+
+    predicted = model.predict_classes(digits)
+    accuracy = np.mean(true_labels == predicted)
+    extracted_data["digits"] = digits
+    extracted_data["labels"] = true_labels
+    extracted_data["predicted"] = predicted
+    extracted_data["accuracy"] = accuracy
+    #
+    save_extracted_data_with_labels(extracted_data, "digits_recognition_col_1.dat")
+    save_labels(true_labels, "digit_labels_col_1.dat")
+
+    print(true_labels)
+    print(predicted)
+    print(accuracy)
+
+
+# img = cv2.imread("Output/ExtractedColumns/0_col/24.jpg")
+# digits = segment_digits_from_column_1(img)
+# digits = preprocess_digits_img_for_tf_predictive_model(digits, (len(digits), 28, 28, 1))
+# model = get_digits_cnn_dg_tf_model()
+# predicted = model.predict_classes(digits)
+# print(predicted)
+digits, paths = collect_digits_from_col_1()
+check_model_accuracy_digits_from_col_1(digits, paths)
+# extracted_digits_data = load_extracted_data_with_labels("digits_recognition_col_1.dat")
+# count = len(extracted_digits_data["predicted"])
+# print(np.where(~np.equal(extracted_digits_data["predicted"], extracted_digits_data["labels"])))

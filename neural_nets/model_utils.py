@@ -73,3 +73,9 @@ def get_letters_CNN_tf_model():
     model = load_model(os.path.join(config.MODELS_DIR, config.letters_CNN_tf))
 
     return model
+
+
+def get_digits_cnn_dg_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.digits_CNN_DataGen_tf))
+
+    return model
