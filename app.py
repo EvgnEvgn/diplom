@@ -43,3 +43,5 @@ def save_align_images_result():
 input_path = r"InputData/Data"
 output_path = r"Output"
 extract_data_from_main_table(input_path, output_path)
+
+print(cv2.__version__)

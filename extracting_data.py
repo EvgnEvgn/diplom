@@ -1,18 +1,18 @@
-import helpers
+# import helpers
 import os
 import sys
-import numpy as np
 import cv2
 from neural_nets.TwoLayerNet.two_layer_net import TwoLayerNet
 from neural_nets.TwoLayerNet.two_layer_net_test import find_best_two_layer_net
 from neural_nets.FullyConnectedNet.fully_connected_net_test import find_best_digits_fully_connected_model
 import mnist
-import matplotlib.pyplot as plt
 from neural_nets.model_utils import *
 from neural_nets.data_utils import *
 from align_images import *
 import string
 from helpers import sort_contours
+import pytesseract
+import helpers
 
 
 def extract_data_from_main_table(input_path, output_path):
@@ -192,7 +192,7 @@ def predict_letters_using_tf():
     # print(score)
 
 
-def segment_digits_from_column_1(img):
+def segment_digits_from_col1(img):
     grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
 
@@ -223,7 +223,55 @@ def segment_digits_from_column_1(img):
     return digits
 
 
-def collect_digits_from_col_1():
+def segment_characters_from_col2(img):
+    horizontal_tilt_threshold = 50
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    (thresh, img_bin) = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
+
+    img_dilated = cv2.dilate(img_bin, np.ones((7, 7)), iterations=2)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+
+    contours, hierarchy = cv2.findContours(img_dilated.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    (cntrs, _) = sort_contours(contours, method="top-to-bottom")
+
+    rects = np.array([cv2.boundingRect(ctr) for ctr in cntrs])
+    y = rects[:, 1]
+    steps = abs(y[1:] - y[:-1])
+    row_idxs = np.where(steps > horizontal_tilt_threshold)[0]
+    row_idxs += 1
+    row_idxs = np.insert(row_idxs, 0, 0)
+    row_idxs = np.append(row_idxs, len(y))
+    rows_count = len(row_idxs) - 1
+    idx = 0
+    rows = []
+    characters = []
+
+    for idx in range(rows_count):
+        row = rects[row_idxs[idx]: row_idxs[idx + 1]]
+        sorted_by_x = row[row[:, 0].argsort()]
+        rows.append(sorted_by_x)
+
+    rows = np.array(rows)
+
+    for row in rows:
+        for word in row:
+            x, y, w, h = word
+            # remove dot from boxes
+            if w > 5 and h > 5:
+                character = img[y:y + h, x:x + w]
+                # character = np.pad(character, ((16, 16), (16, 16)), "constant")
+                # character = cv2.resize(character, (28, 28))
+
+                cv2.imwrite(os.path.join("Output/CroppedImages", "word" + str(idx) + ".jpg"), character)
+                characters.append(character)
+                idx += 1
+
+    return characters
+
+
+def collect_digits_from_col1():
     col_path = r"Output/ExtractedColumns/0_col"
     reshaped_digits = np.zeros((0, 28, 28, 1))
     paths = np.array([])
@@ -231,7 +279,7 @@ def collect_digits_from_col_1():
         full_path = os.path.join(col_path, path)
         if os.path.isfile(full_path):
             img = cv2.imread(full_path)
-            digits = segment_digits_from_column_1(img)
+            digits = segment_digits_from_col1(img)
             digits = preprocess_digits_img_for_tf_predictive_model(digits, (len(digits), 28, 28, 1))
             reshaped_digits = np.concatenate((reshaped_digits, digits))
             path_to_digits = [path] * len(digits)
@@ -272,25 +320,24 @@ def load_extracted_data_with_labels(filename):
 
 def check_model_accuracy_digits_from_col_1(digits, paths):
     true_labels = []
+    # keys consists of ascii coded digits
     keys = [i for i in range(48, 58)]
     model = get_digits_cnn_dg_tf_model()
     extracted_data = {}
     # true_labels = load_labels("digit_labels_col_1.dat")
 
-    digits = digits[:50]
-
     if len(true_labels) == 0:
         for idx, digit in enumerate(digits):
-            if idx == 12 or idx == 21:
-                cv2.imshow('{0} - type digit'.format(paths[idx]), digit)
-                key = cv2.waitKey(0)
 
-                if key == 27:  # (escape to quit)
-                    # TODO:Save true data
-                    sys.exit()
-                elif key in keys:
-                    true_labels.append(int(chr(key)))
-                cv2.destroyAllWindows()
+            cv2.imshow('{0} - type digit'.format(paths[idx]), digit)
+            key = cv2.waitKey(0)
+
+            if key == 27:  # (escape to quit)
+                # TODO:Save true data
+                sys.exit()
+            elif key in keys:
+                true_labels.append(int(chr(key)))
+            cv2.destroyAllWindows()
 
     predicted = model.predict_classes(digits)
     accuracy = np.mean(true_labels == predicted)
@@ -298,23 +345,16 @@ def check_model_accuracy_digits_from_col_1(digits, paths):
     extracted_data["labels"] = true_labels
     extracted_data["predicted"] = predicted
     extracted_data["accuracy"] = accuracy
-    #
-    save_extracted_data_with_labels(extracted_data, "digits_recognition_col_1.dat")
-    save_labels(true_labels, "digit_labels_col_1.dat")
+
+    # save_extracted_data_with_labels(extracted_data, "digits_recognition_col_1.dat")
+    # save_labels(true_labels, "digit_labels_col_1.dat")
 
     print(true_labels)
     print(predicted)
     print(accuracy)
 
 
-# img = cv2.imread("Output/ExtractedColumns/0_col/24.jpg")
-# digits = segment_digits_from_column_1(img)
-# digits = preprocess_digits_img_for_tf_predictive_model(digits, (len(digits), 28, 28, 1))
-# model = get_digits_cnn_dg_tf_model()
-# predicted = model.predict_classes(digits)
-# print(predicted)
-digits, paths = collect_digits_from_col_1()
-check_model_accuracy_digits_from_col_1(digits, paths)
-# extracted_digits_data = load_extracted_data_with_labels("digits_recognition_col_1.dat")
-# count = len(extracted_digits_data["predicted"])
-# print(np.where(~np.equal(extracted_digits_data["predicted"], extracted_digits_data["labels"])))
+img = cv2.imread("Output/ExtractedColumns/1_col/119.jpg")
+characters = segment_characters_from_col2(img)
+res = pytesseract.image_to_string(characters[2], lang='rus')
+print(res)
