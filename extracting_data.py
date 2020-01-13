@@ -230,7 +230,7 @@ def segment_characters_from_col2(img):
     (thresh, img_bin) = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
     cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
 
-    img_dilated = cv2.dilate(img_bin, np.ones((7, 7)), iterations=2)
+    img_dilated = cv2.dilate(img_bin, np.ones((5, 5)), iterations=2)
     cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
 
     contours, hierarchy = cv2.findContours(img_dilated.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -261,7 +261,10 @@ def segment_characters_from_col2(img):
             # remove dot from boxes
             if w > 5 and h > 5:
                 character = img[y:y + h, x:x + w]
-                # character = np.pad(character, ((16, 16), (16, 16)), "constant")
+                #character = cv2.resize(character, (32, 32))
+                #if w < 140:
+                 #   character = img_bin[y:y + h, x:x + w]
+               #     character = np.pad(character, ((8, 8), (8, 8)), "constant")
                 # character = cv2.resize(character, (28, 28))
 
                 cv2.imwrite(os.path.join("Output/CroppedImages", "word" + str(idx) + ".jpg"), character)
@@ -354,7 +357,7 @@ def check_model_accuracy_digits_from_col_1(digits, paths):
     print(accuracy)
 
 
-img = cv2.imread("Output/ExtractedColumns/1_col/119.jpg")
+img = cv2.imread("Output/ExtractedColumns/1_col/6.jpg")
 characters = segment_characters_from_col2(img)
-res = pytesseract.image_to_string(characters[2], lang='rus')
+res = pytesseract.image_to_string(characters[0], lang='rus')
 print(res)
