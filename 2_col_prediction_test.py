@@ -57,24 +57,20 @@ col_path = r"Output/ExtractedColumns/1_col"
 bad_result = []
 paths = ["{0}.jpg".format(i) for i in range(0,15)]
 for path in paths:
-    if idx >= 15:
-        break
-
     full_path = os.path.join(col_path, path)
     if os.path.isfile(full_path):
         img = cv2.imread(full_path)
         img_words = segment_characters_from_col2(img)
         for img_word in img_words:
             predicted_word = pytesseract.image_to_string(img_word, lang='rus')
-            print(predicted_word)
+            print("True word: {0} | Predicted word: {1}".format(true_words[counter], predicted_word))
             if predicted_word == true_words[counter]:
                 prediction_result += 1
             else:
                 bad_result.append(counter)
             counter += 1
         idx += 1
-
-print(counter)
-print(prediction_result)
-print(prediction_result/test_count)
-print(bad_result)
+print("----------------------------------------------------------------")
+print("Test words amount:", counter)
+print("Prediction accuracy:", prediction_result/test_count)
+print("----------------------------------------------------------------")

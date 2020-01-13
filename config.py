@@ -4,6 +4,9 @@ TEMPLATE_IMG_PATH_P1 = r"InputData\TemplateData\part1.jpg"
 TEMPLATE_IMG_PATH_P2 = r"InputData\TemplateData\part2.jpg"
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(ROOT_DIR, "neural_nets", "models")
+RECOGNITION_RESULT_DIR = os.path.join(ROOT_DIR, "Output", "RecognitionResult")
+digits_recognition_col1_data = os.path.join(RECOGNITION_RESULT_DIR, "digits_recognition_col1")
+
 
 digits_two_layer_net_model = "digits2layerNN.nnm"
 digits_fully_connected_net_model = "digitsFCNN.nnm"

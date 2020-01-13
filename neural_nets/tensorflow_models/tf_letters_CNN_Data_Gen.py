@@ -77,8 +77,25 @@ def init_letters_CNN_model_2():
     return model
 
 
+def print_learning_curves(loss_history, train_acc_history, val_acc_history):
+    # Отображение функции потерь и точности обучения/валидации
+    plt.subplot(2, 1, 1)
+    plt.plot(loss_history)
+    plt.title('Loss history')
+    plt.xlabel('Iteration')
+    plt.ylabel('Loss')
+    plt.subplot(2, 1, 2)
+    plt.plot(train_acc_history, label='train')
+    plt.plot(val_acc_history, label='val')
+    plt.title('Classification accuracy history')
+    plt.xlabel('Epoch')
+    plt.ylabel('Clasification accuracy')
+    plt.legend()
+    plt.show()
+
+
 def optimizer_init_fn(learning_rate):
-    #optimizer = tf.keras.optimizers.SGD(nesterov=True, momentum=0.9)
+    # optimizer = tf.keras.optimizers.SGD(nesterov=True, momentum=0.9)
     # optimizer = tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
     # optimizer = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
     optimizer = tf.keras.optimizers.Adam()
@@ -117,10 +134,11 @@ model.compile(optimizer=optimizer,
               metrics=[tf.keras.metrics.sparse_categorical_accuracy])
 train_generated_data = datagen.flow(x_train, y_train, batch_size=64)
 history = model.fit_generator(train_generated_data,
-                              epochs=20, steps_per_epoch=x_train.shape[0] // 64,
+                              epochs=10, steps_per_epoch=x_train.shape[0] // 64,
                               validation_data=(x_val, y_val),
                               callbacks=[annealer])
-
+loss_history = history.history['loss']
+print_learning_curves(loss_history, history.history['sparse_categorical_accuracy'], history.history['val_sparse_categorical_accuracy'])
 score = model.evaluate(x_test, y_test, verbose=0)
 print("Score:", score)
-model.save(os.path.join(config.MODELS_DIR, config.letters_CNN_DataGen_tf))
+#model.save(os.path.join(config.MODELS_DIR, config.letters_CNN_DataGen_tf))

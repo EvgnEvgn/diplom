@@ -261,10 +261,10 @@ def segment_characters_from_col2(img):
             # remove dot from boxes
             if w > 5 and h > 5:
                 character = img[y:y + h, x:x + w]
-                #character = cv2.resize(character, (32, 32))
-                #if w < 140:
-                 #   character = img_bin[y:y + h, x:x + w]
-               #     character = np.pad(character, ((8, 8), (8, 8)), "constant")
+                # character = cv2.resize(character, (32, 32))
+                # if w < 140:
+                #   character = img_bin[y:y + h, x:x + w]
+                #     character = np.pad(character, ((8, 8), (8, 8)), "constant")
                 # character = cv2.resize(character, (28, 28))
 
                 cv2.imwrite(os.path.join("Output/CroppedImages", "word" + str(idx) + ".jpg"), character)
@@ -291,13 +291,31 @@ def collect_digits_from_col1():
     return reshaped_digits, paths
 
 
+def collect_letters_from_col5():
+    col_path = r"Output/ExtractedColumns/4_col"
+    reshaped_letters = np.zeros((0, 28, 28, 1))
+    listdir = ["{0}.jpg".format(i) for i in range(0, 70)]
+    paths = np.array([])
+    for path in listdir:
+        full_path = os.path.join(col_path, path)
+        if os.path.isfile(full_path):
+            img = cv2.imread(full_path)
+            letters = segment_letters(img)
+            digits = preprocess_letters_img_for_predictive_model(letters, (len(letters), 28, 28, 1))
+            reshaped_letters = np.concatenate((reshaped_letters, digits))
+            path_to_digits = [path] * len(digits)
+            paths = np.concatenate((paths, path_to_digits))
+
+    return reshaped_letters, paths
+
+
 def save_labels(labels, filename):
     file = open(os.path.join(config.ROOT_DIR, filename), "wb")
     pickle.dump(labels, file)
 
 
 def load_labels(filename):
-    file_path = os.path.join(config.ROOT_DIR, filename)
+    file_path = os.path.join(config.digits_recognition_col1_data, filename)
     try:
         file = open(file_path, "rb")
         labels = pickle.load(file)
@@ -307,12 +325,12 @@ def load_labels(filename):
 
 
 def save_extracted_data_with_labels(extracted_data, filename):
-    file = open(os.path.join(config.ROOT_DIR, filename), "wb")
+    file = open(os.path.join(config.digits_recognition_col1_data, filename), "wb")
     pickle.dump(extracted_data, file)
 
 
 def load_extracted_data_with_labels(filename):
-    file_path = os.path.join(config.ROOT_DIR, filename)
+    file_path = os.path.join(config.digits_recognition_col1_data, filename)
     try:
         file = open(file_path, "rb")
         extracted_data = pickle.load(file)
@@ -327,7 +345,7 @@ def check_model_accuracy_digits_from_col_1(digits, paths):
     keys = [i for i in range(48, 58)]
     model = get_digits_cnn_dg_tf_model()
     extracted_data = {}
-    # true_labels = load_labels("digit_labels_col_1.dat")
+    true_labels = load_labels("digit_labels_col_1.dat")
 
     if len(true_labels) == 0:
         for idx, digit in enumerate(digits):
@@ -357,7 +375,7 @@ def check_model_accuracy_digits_from_col_1(digits, paths):
     print(accuracy)
 
 
-img = cv2.imread("Output/ExtractedColumns/1_col/6.jpg")
-characters = segment_characters_from_col2(img)
-res = pytesseract.image_to_string(characters[0], lang='rus')
-print(res)
+
+#extracted_data = load_extracted_data_with_labels("digits_recognition_col_1.dat")
+#print("Digit recognition test count: ", len(extracted_data["digits"]))
+#print("Digit recognition test accuracy: ", extracted_data["accuracy"])

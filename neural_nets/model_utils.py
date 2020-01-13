@@ -58,7 +58,7 @@ def get_letters_fully_connected_net_model():
     return model
 
 
-def get_letters_three_layer_CNN_model():
+def get_letters_three_layer_cnn_model():
     model = load_best_model(config.letters_three_layer_cnn_model)
 
     if model is None:
@@ -77,5 +77,11 @@ def get_letters_CNN_tf_model():
 
 def get_digits_cnn_dg_tf_model():
     model = load_model(os.path.join(config.MODELS_DIR, config.digits_CNN_DataGen_tf))
+
+    return model
+
+
+def get_letters_cnn_dg_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.letters_CNN_DataGen_tf))
 
     return model
