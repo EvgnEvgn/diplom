@@ -1,5 +1,5 @@
 import cv2
-import pytesseract
+#import pytesseract
 from extracting_data import *
 from neural_nets.data_utils import *
 import pickle
@@ -15,7 +15,7 @@ test_labels = ["c", "a", "d", "c", "b", "c", "a", "e", "", "b",
 alphabet = dict((idx, key) for idx, key in enumerate(string.ascii_lowercase))
 bad_result = []
 
-# letters, paths = collect_letters_from_col5()
+letters, paths = collect_letters_from_col5()
 
 # x_train, y_train, x_val, y_val, x_test, y_test = get_emnist_letters_data_TF()
 # letters_model = get_letters_cnn_dg_tf_model()

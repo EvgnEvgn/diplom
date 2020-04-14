@@ -11,8 +11,13 @@ from neural_nets.data_utils import *
 from align_images import *
 import string
 from helpers import sort_contours
-import pytesseract
+# import pytesseract
 import helpers
+from skimage.feature import peak_local_max
+from skimage.morphology import watershed
+from scipy import ndimage
+import imutils
+from skimage import measure
 
 
 def extract_data_from_main_table(input_path, output_path):
@@ -48,15 +53,16 @@ def extract_data_from_main_table(input_path, output_path):
     return
 
 
-def segment_digits(img):
-    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
+def segment_digits(img_bin):
+    # grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # grayscale = cv2.GaussianBlur(grayscale, (3, 3), 0)
 
-    (thresh, img_bin) = cv2.threshold(grayscale, 128, 255, cv2.THRESH_BINARY_INV)
+    # (thresh, img_bin) = cv2.threshold(grayscale, 128, 255, cv2.THRESH_BINARY_INV)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
     # img_bin = cv2.bitwise_not(img_bin)
 
-    img_dilated = cv2.dilate(img_bin, np.ones((2, 2)), iterations=5)
-    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_dilated)
+    img_dilated = cv2.dilate(img_bin, np.ones((4, 2)), iterations=1)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
 
     contours, hierarchy = cv2.findContours(img_dilated.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -65,57 +71,20 @@ def segment_digits(img):
     digits = []
     for rect in rects:
         x, y, w, h = rect
-        digit = img_bin[y:y + h, x:x + w]
-        digit = cv2.resize(digit, (20, 20), interpolation=cv2.INTER_AREA)
-        digit = np.pad(digit, ((4, 4), (4, 4)), "constant")
-        # digit = cv2.resize(digit, (28, 28), interpolation=cv2.INTER_AREA)
-        digit = cv2.dilate(digit, np.ones((1, 1), dtype=np.uint8))
-        digits.append(digit)
-        # symbol = cv2.dilate(symbol, (3, 3))
+        if w > 15 and h > 15:
+            digit = img_dilated[y:y + h, x:x + w]
+            # digit = cv2.resize(digit, (20, 20), interpolation=cv2.INTER_AREA)
+            # digit = np.pad(digit, ((4, 4), (4, 4)), "constant")
+            # digit = cv2.resize(digit, (28, 28), interpolation=cv2.INTER_AREA)
+            # digit = cv2.dilate(digit, np.ones((1, 1), dtype=np.uint8))
 
-        cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), digit)
-        idx += 1
+            digits.append(digit)
+            # symbol = cv2.dilate(symbol, (3, 3))
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), digit)
+            idx += 1
 
     return digits
-
-
-def compute_skew(image):
-    image = cv2.bitwise_not(image)
-    height, width = image.shape
-
-    edges = cv2.Canny(image, 150, 200, 3, 5)
-    lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 100, minLineLength=width / 2.0, maxLineGap=20)
-    angle = 0.0
-    nlines = lines.size
-    for x1, y1, x2, y2 in lines[0]:
-        angle += np.arctan2(y2 - y1, x2 - x1)
-    return angle / nlines
-
-
-def deskew(image, angle):
-    image = cv2.bitwise_not(image)
-    non_zero_pixels = cv2.findNonZero(image)
-    center, wh, theta = cv2.minAreaRect(non_zero_pixels)
-
-    root_mat = cv2.getRotationMatrix2D(center, angle, 1)
-    rows, cols = image.shape
-    rotated = cv2.warpAffine(image, root_mat, (cols, rows), flags=cv2.INTER_CUBIC)
-
-    return cv2.getRectSubPix(rotated, (cols, rows), center)
-
-
-def deskew_v2(img, size):
-    m = cv2.moments(img)
-    if abs(m['mu02']) < 1e-2:
-        # no deskewing needed.
-        return img.copy()
-    # Calculate skew based on central momemts.
-    skew = m['mu11'] / m['mu02']
-    # Calculate affine transform to correct skewness.
-    M = np.float32([[1, skew, -0.5 * size * skew], [0, 1, 0]])
-    # Apply affine transform
-    img = cv2.warpAffine(img, M, (size, size), flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR)
-    return img
 
 
 def segment_letters(img):
@@ -145,14 +114,432 @@ def segment_letters(img):
         x, y, w, h = rect
         if w > 20 and h > 10:
             letter = img_eroded[y:y + h, x:x + w]
-            # letter = cv2.resize(letter, (20, 20), interpolation=cv2.INTER_AREA)
-            # letter = np.pad(letter, ((4, 4), (4, 4)), "constant")
-            letter = cv2.resize(letter, (28, 28), interpolation=cv2.INTER_AREA)
-            letter = cv2.dilate(letter, kernel2)
+            letter = cv2.resize(letter, (20, 20), interpolation=cv2.INTER_AREA)
+            letter = np.pad(letter, ((4, 4), (4, 4)), "constant")
+            # letter = cv2.resize(letter, (28, 28), interpolation=cv2.INTER_AREA)
+            # letter = cv2.dilate(letter, kernel2)
             letters.append(letter)
             # symbol = cv2.dilate(symbol, (3, 3))
 
             cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), letter)
+            idx += 1
+
+    return letters
+
+
+def segment_touching_digits(img):
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
+    # grayscale = cv2.fastNlMeansDenoising(grayscale)
+    # normalized_img = np.zeros_like(grayscale)
+    # normalized_img = cv2.normalize(grayscale, normalized_img, 0, 255, cv2.NORM_MINMAX)
+    # edged = cv2.Canny(grayscale, 50, 200, 255)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "edged.jpg"), edged)
+
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
+    erode_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+
+    thresh, img_bin = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "threshold_img_bin.jpg"), img_bin)
+
+    img_dilated = cv2.dilate(img_bin, dilate_kernel, iterations=5)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+
+    img_eroded = cv2.erode(img_dilated, erode_kernel, iterations=2)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_eroded.jpg"), img_eroded)
+
+    # img_dilated = cv2.dilate(img_eroded, kernel, iterations=1)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+    contours, hierarchy = cv2.findContours(img_eroded.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects = [cv2.boundingRect(ctr) for ctr in contours]
+    # rects = imutils.grab_contours(contours)
+    idx = 0
+    segmented_img = None
+    for rect in rects:
+        x, y, w, h = rect
+        if w > 50 and h > 40:
+            ROI = img[y:y + h, x:x + w]
+            cv2.imwrite(os.path.join("Output/CroppedImages", "ROI" + str(idx) + ".jpg"), ROI)
+            #ROI = np.pad(ROI, ((5, 5), (5, 5))))
+            resized = cv2.resize(ROI, (64, 64), interpolation=cv2.INTER_AREA)
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "resized" + str(idx) + ".jpg"), resized)
+
+            segmented_gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+            # segmented_blur = cv2.GaussianBlur(segmented_gray, (5, 5), 0)
+
+            max_v = float(segmented_gray.max())
+            min_v = float(segmented_gray.min())
+            x = max_v - ((max_v - min_v) / 2)
+
+            thresh, img_bin = cv2.threshold(segmented_gray, x, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+
+            #dilated = cv2.dilate(img_bin, np.ones((4, 4)), iterations=1)
+            #eroded = cv2.erode(dilated, np.ones((2, 2)), iterations=1)
+            #cv2.imwrite(os.path.join("Output/CroppedImages", "symbol_dilated" + str(idx) + ".jpg"), eroded)
+
+            segmented_img = img_bin
+
+    return segmented_img
+
+
+def watershed_asdas(img, img_bin):
+    D = ndimage.distance_transform_edt(img_bin)
+    localMax = peak_local_max(D, indices=False, min_distance=5,
+                              labels=img_bin)
+    # perform a connected component analysis on the local peaks,
+    # using 8-connectivity, then appy the Watershed algorithm
+    markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0]
+    labels = watershed(-D, markers, mask=img_bin)
+
+    print("[INFO] {} unique segments found".format(len(np.unique(labels)) - 1))
+    idx = 0
+    for label in np.unique(labels):
+        # if the label is zero, we are examining the 'background'
+        # so simply ignore it
+        if label == 0:
+            continue
+        # otherwise, allocate memory for the label region and draw
+        # it on the mask
+        mask = np.zeros(img_bin.shape, dtype="uint8")
+        mask[labels == label] = 255
+        # detect contours in the mask and grab the largest one
+        cnts = cv2.findContours(mask.copy(), cv2.RETR_TREE,
+                                cv2.CHAIN_APPROX_SIMPLE)
+
+        rects = [cv2.boundingRect(ctr) for ctr in cnts[0]]
+
+        for rect in rects:
+            x, y, w, h = rect
+            if w > 15 and h > 25:
+                cropped = img[y:y + h, x:x + w]
+                cv2.imwrite(os.path.join("Output/CroppedImages", "cropped_by_water" + str(idx) + ".jpg"), cropped)
+                idx += 1
+
+
+def compute_skew(img):
+    # load in grayscale:
+    src = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    src = cv2.threshold(src, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    height, width = src.shape[0:2]
+
+    # invert the colors of our image:
+    cv2.bitwise_not(src, src)
+
+    # Hough transform:
+    minLineLength = width / 2.0
+    maxLineGap = 20
+    lines = cv2.HoughLinesP(src, 1, np.pi / 180, 100, minLineLength, maxLineGap)
+
+    # calculate the angle between each line and the horizontal line:
+    angle = 0.0
+    nb_lines = len(lines)
+
+    for line in lines:
+        angle += math.atan2(line[0][3] * 1.0 - line[0][1] * 1.0, line[0][2] * 1.0 - line[0][0] * 1.0)
+
+    angle /= nb_lines * 1.0
+
+    return angle * 180.0 / np.pi
+
+
+def deskew(img, angle):
+    # load in grayscale:
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # invert the colors of our image:
+    cv2.bitwise_not(img, img)
+
+    # compute the minimum bounding box:
+    non_zero_pixels = cv2.findNonZero(img)
+    center, wh, theta = cv2.minAreaRect(non_zero_pixels)
+
+    root_mat = cv2.getRotationMatrix2D(center, angle, 1)
+    rows, cols = img.shape
+    rotated = cv2.warpAffine(img, root_mat, (cols, rows), flags=cv2.INTER_CUBIC)
+
+    # Border removing:
+    sizex = np.int0(wh[0])
+    sizey = np.int0(wh[1])
+    if theta > -45:
+        temp = sizex
+        sizex = sizey
+        sizey = temp
+    return cv2.getRectSubPix(rotated, (sizey, sizex), center)
+
+
+def rotate_img(img_bin, with_morph_op=False):
+    img_to_rotate = img_bin
+
+    if with_morph_op:
+        erode_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+        dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+
+        erode = cv2.erode(img_bin, erode_kernel, iterations=1)
+        dilate = cv2.dilate(erode, dilate_kernel, iterations=2)
+
+        img_to_rotate = dilate  # cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    rotated = unshear(img_to_rotate)
+    # rotated = cv2.erode(rotated, erode_kernel, iterations=1)
+
+    return rotated
+
+
+def segment_eng_letters(img):
+    # TODO: сделать проверку, что в результате сегментации было определено 2 буквы или 1.
+    # TODO: В случае если была определена 1 буква, то заново считать и выделить ее (нужно для того, чтобы лучше
+    #  предобработать данные)
+    # TODO: для 2ух сегментированных букв оставить, как есть
+
+    cv2.imwrite(os.path.join("Output/CroppedImages", "orig.jpg"), img)
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grayscale = cv2.GaussianBlur(grayscale, (3, 3), 0)
+    grayscale = cv2.fastNlMeansDenoising(grayscale)
+    normalized_img = np.zeros_like(grayscale)
+    normalized_img = cv2.normalize(grayscale, normalized_img, 0, 255, cv2.NORM_MINMAX)
+
+    _, img_bin = cv2.threshold(normalized_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
+
+    rotated = rotate_img(img_bin, with_morph_op=True)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "rotated.jpg"), rotated)
+
+    labels = measure.label(rotated, connectivity=2, background=0)
+    # # charCandidates = np.zeros(img_bin.shape, dtype="uint8")
+    idx = 0
+    cropped_letters = []
+    for label in np.unique(labels):
+        # if this is the background label, ignore it
+        if label == 0:
+            continue
+
+        # otherwise, construct the label mask to display only connected components for the
+        # current label, then find contours in the label mask
+        labelMask = np.zeros(img_bin.shape, dtype="uint8")
+        labelMask[labels == label] = 255
+        cnts, _ = cv2.findContours(labelMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        rects = [cv2.boundingRect(ctr) for ctr in cnts]
+
+        for rect in rects:
+            x, y, w, h = rect
+            if w > 15 and h > 30:
+                y_pad = min(y, 1)
+                x_pad = min(x, 1)
+                w_pad = min(img.shape[1], x + w + 1)
+                h_pad = min(img.shape[0], y + h + 1)
+                letter = rotated[y - y_pad: h_pad, x - x_pad: w_pad]
+                cropped_letters.append(letter)
+                # cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), letter)
+                idx += 1
+    k = 0
+    final_letters = []
+    if len(cropped_letters) == 2:
+        for cl in cropped_letters:
+            # resized = np.pad(cl, ((4, 4), (4, 4)), "constant")
+            # resized = cv2.resize(resized, (28, 28), interpolation=cv2.INTER_AREA)
+
+            resized = cv2.resize(cl, (56, 56), interpolation=cv2.INTER_NEAREST)
+            resized = np.pad(resized, ((4, 4), (4, 4)), "constant")
+
+            final_letters.append(resized)
+    else:
+        segmented = segment_single_letter(img, img_bin)
+        final_letters.append(segmented)
+
+    return final_letters
+
+
+#     cnts = cnts[0] if imutils.is_cv2() else cnts[1]
+# contours, _ = cv2.findContours(markers.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+#
+# rects = [cv2.boundingRect(ctr) for ctr in contours]
+# idx = 0
+# for rect in rects:
+#     x, y, w, h = rect
+#     if w > 15 and h > 25:
+#         x, y, w, h = rect
+#         # if w > 15 and h > 21:
+#         letter = rotated[y:y + h, x:x + w]
+#         cv2.imwrite(os.path.join("Output/CroppedImages", "symbol" + str(idx) + ".jpg"), letter)
+#         idx += 1
+
+def segment_single_letter(orig_img, img_bin):
+    # rotated_bin = rotate_img(img_bin)
+    # dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    # dilate = cv2.dilate(rotated_bin, dilate_kernel, iterations=2)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "dilate" + ".jpg"), dilate)
+    #
+    # labels = measure.label(dilate, connectivity=2, background=0)
+    # # # charCandidates = np.zeros(img_bin.shape, dtype="uint8")
+    # idx = 0
+    #
+    # for label in np.unique(labels):
+    #     # if this is the background label, ignore it
+    #     if label == 0:
+    #         continue
+    #
+    #     # otherwise, construct the label mask to display only connected components for the
+    #     # current label, then find contours in the label mask
+    #     labelMask = np.zeros(img_bin.shape, dtype="uint8")
+    #     labelMask[labels == label] = 255
+    #     cnts, _ = cv2.findContours(labelMask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #     rects = [cv2.boundingRect(ctr) for ctr in cnts]
+    #
+    #     for rect in rects:
+    #         x, y, w, h = rect
+    #         if w > 15 and h > 35:
+    #             y_pad = min(y, 5)
+    #             x_pad = min(x, 5)
+    #             w_pad = min(rotated_bin.shape[1], x + w + 5)
+    #             h_pad = min(rotated_bin.shape[0], y + h + 5)
+    #             ROI = img_bin[y - y_pad: h_pad, x - x_pad: w_pad]
+    #             cv2.imwrite(os.path.join("Output/CroppedImages", "ROI" + str(idx) + ".jpg"), ROI)
+    #
+    #             cropped_letter = np.zeros((28, 28), dtype=np.uint8)
+    #
+    #             resized_ROI = cv2.resize(ROI, (20, 20), interpolation=cv2.INTER_AREA)
+    #             x = cropped_letter.shape[0] // 2 - resized_ROI.shape[0] // 2
+    #             y = cropped_letter.shape[1] // 2 - resized_ROI.shape[1] // 2
+    #             cropped_letter[y:y+resized_ROI.shape[1], x:x+resized_ROI.shape[0]] = resized_ROI
+    #
+    #             cv2.imwrite(os.path.join("Output/CroppedImages", "single_letter_cropped" + str(idx) + ".jpg"), cropped_letter)
+    #             idx += 1
+    #             #return cropped_letter
+
+    # img_bin = np.pad(img_bin, ((5, 5), (5, 5)))
+    # kernel = np.ones((2, 2), np.uint8)
+
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
+    dilate = cv2.dilate(img_bin, dilate_kernel, iterations=2)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "dilate" + ".jpg"), dilate)
+
+    contours, hierarchy = cv2.findContours(dilate.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects = [cv2.boundingRect(ctr) for ctr in contours]
+    idx = 0
+    segmented_letter = None
+    for rect in rects:
+        x, y, w, h = rect
+        if w > 30 and h > 30:
+            x, y, w, h = rect
+
+            y_pad = min(y, 0)
+            x_pad = min(x, 0)
+            w_pad = min(img_bin.shape[1], x + w + 0)
+            h_pad = min(img_bin.shape[0], y + h + 0)
+            ROI = img_bin[y - y_pad:h_pad, x - x_pad:w_pad]
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "ROI" + str(idx) + ".jpg"), ROI)
+            ROI = cv2.resize(ROI, (64, 64), interpolation=cv2.INTER_AREA)
+            letter = deskew_v2(ROI)
+            letter = np.pad(letter, ((10, 10), (10, 10)))
+            letter = cv2.resize(letter, (64, 64), interpolation=cv2.INTER_NEAREST)
+            cv2.imwrite(os.path.join("Output/CroppedImages", "cropped" + str(idx) + ".jpg"), letter)
+            segmented_letter = letter
+
+    return segmented_letter
+
+
+def deskew_v2(img):
+    SZ = 64
+    affine_flags = cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR
+
+    m = cv2.moments(img)
+    if abs(m['mu02']) < 1e-2:
+        return img.copy()
+    skew = m['mu11'] / m['mu02']
+    M = np.float32([[1, skew, -0.5 * img.shape[0] * skew], [0, 1, 0]])
+    img = cv2.warpAffine(img, M, (img.shape[0], img.shape[1]), flags=affine_flags)
+    return img
+
+
+def segment_letters_v2(img):
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
+    _, img_bin = cv2.threshold(grayscale, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
+    # erode_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    # dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 2))
+    # dilate_kernel_2 = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    # dilate = cv2.dilate(img_bin, dilate_kernel, iterations=1)
+    # erode = cv2.erode(dilate, erode_kernel, iterations=1)
+    # dilate = cv2.dilate(erode, dilate_kernel_2, iterations=1)
+    # img_bin = dilate
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "opening.jpg"), img_bin)
+
+    kernel = np.ones((2, 2), np.uint8)
+    erode_kernel = cv2.getStructuringElement(cv2.MORPH_ERODE, (2, 2))
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
+    erode = cv2.erode(img_bin, erode_kernel, iterations=1)
+    dilate = cv2.dilate(erode, dilate_kernel, iterations=2)
+    opening = dilate  # cv2.morphologyEx(img_bin, cv2.MORPH_OPEN, kernel, iterations=1)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "opening.jpg"), opening)
+
+    edges = cv2.Canny(opening, 50, 150, apertureSize=5)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "edges.jpg"), edges)
+    watershed_asdas(img, grayscale, edges)
+
+    # sure background area
+    sure_bg = cv2.dilate(opening, kernel, iterations=1)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "sure_bg.jpg"), sure_bg)
+
+    # Finding sure foreground area
+    dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+    ret, sure_fg = cv2.threshold(dist_transform, 0.6 * dist_transform.max(), 255, 0)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "sure_fg.jpg"), sure_fg)
+
+    # Finding unknown region
+    sure_fg = np.uint8(sure_fg)
+    unknown = cv2.subtract(sure_bg, sure_fg)
+
+    ret, markers = cv2.connectedComponents(sure_fg)
+
+    # Add one to all labels so that sure background is not 0, but 1
+    markers = markers + 1
+
+    # Now, mark the region of unknown with zero
+    markers[unknown == 255] = 0
+    markers = cv2.watershed(img, markers)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "unknown.jpg"), unknown)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "markers.jpg"), markers)
+
+    img_bin[markers == -1] = 255
+    cv2.imwrite(os.path.join("Output/CroppedImages", "marked_img_bin.jpg"), img_bin)
+    markers = np.array(markers, dtype=np.uint8)
+
+    # lines = cv2.HoughLinesP(img_bin, rho=1, theta=1 * np.pi / 180, threshold=100, minLineLength=2, maxLineGap=50)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "lines.jpg"), lines)
+
+    # img_dilated = cv2.dilate(sheared_img, np.ones((10, 10)), iterations=1)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
+
+    # img_eroded = cv2.erode(sheared_img, np.ones((2, 1)), iterations=1)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "img_eroded.jpg"), img_eroded)
+    #
+    # img_dilated = cv2.dilate(img_eroded, np.ones((2, 1)), iterations=1)
+    # cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated_2.jpg"), img_dilated)
+
+    contours, hierarchy = cv2.findContours(markers.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects = [cv2.boundingRect(ctr) for ctr in contours]
+    idx = 0
+    letters = []
+    for rect in rects:
+        x, y, w, h = rect
+        if w > 15 and h > 25:
+            x, y, w, h = rect
+            # if w > 15 and h > 21:
+            letter = img[y:y + h, x:x + w]
+            # letter = cv2.resize(letter, (20, 20), interpolation=cv2.INTER_AREA)
+            # letter = np.pad(letter, ((4, 4), (4, 4)), "constant")
+            # letter = cv2.resize(letter, (28, 28), interpolation=cv2.INTER_AREA)
+            # letter = cv2.dilate(letter, kernel2)
+            # letters.append(letter)
+            # letter = cv2.dilate(letter, (3, 3))
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "cropped" + str(idx) + ".jpg"), letter)
             idx += 1
 
     return letters
@@ -210,6 +597,7 @@ def segment_digits_from_col1(img):
 
     rects = [cv2.boundingRect(ctr) for ctr in contours]
     digits = []
+    idx = 0
     for rect in rects:
         x, y, w, h = rect
         # remove dot from boxes
@@ -217,9 +605,11 @@ def segment_digits_from_col1(img):
             digit = erroded[y:y + h, x:x + w]
             digit = np.pad(digit, ((16, 16), (16, 16)), "constant")
             digit = cv2.resize(digit, (28, 28))
-
+            test = np.pad(img_bin[y:y + h, x:x + w], ((16, 16), (16, 16)), "constant")
+            test = cv2.resize(digit, (32, 32))
+            cv2.imwrite(os.path.join("Output/CroppedImages", "digit{0}.jpg".format(idx)), test)
             digits.append(digit)
-
+            idx += 1
     return digits
 
 
@@ -291,19 +681,54 @@ def collect_digits_from_col1():
     return reshaped_digits, paths
 
 
+def get_letter_images_from_col5():
+    col_path = r"Output/ExtractedColumns/4_col"
+    listdir = ["{0}.jpg".format(i) for i in range(0, 16)]
+    paths = np.array([])
+    all_letters = np.zeros((0, 64, 64))
+    for path in listdir:
+        full_path = os.path.join(col_path, path)
+        if os.path.isfile(full_path):
+            img = cv2.imread(full_path)
+            letters = segment_letters(img)
+            all_letters = np.concatenate((all_letters, letters))
+            path_to_digits = [path] * len(letters)
+            paths = np.concatenate((paths, path_to_digits))
+
+    return all_letters, paths
+
+
 def collect_letters_from_col5():
     col_path = r"Output/ExtractedColumns/4_col"
     reshaped_letters = np.zeros((0, 28, 28, 1))
-    listdir = ["{0}.jpg".format(i) for i in range(0, 70)]
+    listdir = ["{0}.jpg".format(i) for i in range(0, 40)]
     paths = np.array([])
     for path in listdir:
         full_path = os.path.join(col_path, path)
         if os.path.isfile(full_path):
             img = cv2.imread(full_path)
             letters = segment_letters(img)
-            digits = preprocess_letters_img_for_predictive_model(letters, (len(letters), 28, 28, 1))
-            reshaped_letters = np.concatenate((reshaped_letters, digits))
-            path_to_digits = [path] * len(digits)
+            letters = preprocess_letters_img_for_predictive_model(letters, (len(letters), 28, 28, 1))
+            reshaped_letters = np.concatenate((reshaped_letters, letters))
+            path_to_digits = [path] * len(letters)
+            paths = np.concatenate((paths, path_to_digits))
+
+    return reshaped_letters, paths
+
+
+def get_letters_img_for_test():
+    path = r"Output/eng_letters_with_issues"
+    reshaped_letters = np.zeros((0, 28, 28, 1))
+    listdir = os.listdir(path)
+    paths = np.array([])
+    for img_path in listdir:
+        full_path = os.path.join(path, img_path)
+        if os.path.isfile(full_path):
+            img = cv2.imread(full_path)
+            letters = segment_letters_v2(img)
+            letters = preprocess_letters_img_for_predictive_model(letters, (len(letters), 28, 28, 1))
+            reshaped_letters = np.concatenate((reshaped_letters, letters))
+            path_to_digits = [img_path] * len(letters)
             paths = np.concatenate((paths, path_to_digits))
 
     return reshaped_letters, paths
@@ -375,7 +800,64 @@ def check_model_accuracy_digits_from_col_1(digits, paths):
     print(accuracy)
 
 
+def pad_with(vector, pad_width, iaxis, kwargs):
+    pad_value = kwargs.get('padder', 40)
+    vector[:pad_width[0]] = pad_value
+    vector[-pad_width[1]:] = pad_value
+    return vector
 
-#extracted_data = load_extracted_data_with_labels("digits_recognition_col_1.dat")
-#print("Digit recognition test count: ", len(extracted_data["digits"]))
-#print("Digit recognition test accuracy: ", extracted_data["accuracy"])
+# img = cv2.imread("Output/ExtractedColumns/5_col/8.jpg")
+# grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+# thresh = cv2.threshold(grayscale, 127, 255, 1)[1]
+# thresh = np.pad(thresh, 100, pad_with, padder=0)
+#
+# rotated = deskew_v2(thresh)
+# cv2.imwrite(os.path.join("Output/CroppedImages", "rotated.jpg"), rotated)
+# sheared_img = unshear(thresh)
+# cv2.imwrite(os.path.join("Output/CroppedImages", "sheared_img.jpg"), sheared_img)
+#
+# ret, thresh_res = cv2.threshold(sheared_img,0,255,cv2.THRESH_BINARY_INV+cv2.THRESH_OTSU)
+#
+# cv2.imwrite(os.path.join("Output/CroppedImages", "res_deskewed.jpg"), thresh_res)
+
+# segment_digits(sheared_img)
+# img = cv2.imread("Output/CroppedImages/symbol0.jpg", 0)
+# cv2.imwrite(os.path.join("Output/CroppedImages", "img_in.jpg"), img)
+# thresh = img
+# #grayscale = cv2.cvtColor()
+# #thresh = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+# cv2.imwrite(os.path.join("Output/CroppedImages", "thresh_in.jpg"), thresh)
+# D = ndimage.distance_transform_edt(thresh)
+# localMax = peak_local_max(D, indices=False, min_distance=20,
+#                           labels=thresh)
+#
+# markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0]
+# labels = watershed(-D, markers, mask=thresh)
+#
+# for label in np.unique(labels):
+#     # if the label is zero, we are examining the 'background'
+#     # so simply ignore it
+#     if label == 0:
+#         continue
+#     # otherwise, allocate memory for the label region and draw
+#     # it on the mask
+#     mask = np.zeros(img.shape, dtype="uint8")
+#     mask[labels == label] = 255
+#     cv2.imwrite(os.path.join("Output/CroppedImages", "mask.jpg"), mask)
+#     # detect contours in the mask and grab the largest one
+#     cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL,
+#                             cv2.CHAIN_APPROX_SIMPLE)
+#
+#     cnts = imutils.grab_contours(cnts)
+#
+#     c = max(cnts, key=cv2.contourArea)
+#
+#     # draw a circle enclosing the object
+#     ((x, y), r) = cv2.minEnclosingCircle(c)
+#
+#     cv2.circle(img, (int(x), int(y)), int(r), (0, 255, 0), 2)
+#     cv2.putText(img, "#{}".format(label), (int(x) - 10, int(y)),
+#                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+#
+# cv2.imshow("Output", img)
+# cv2.waitKey(0)

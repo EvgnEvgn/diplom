@@ -85,3 +85,45 @@ def get_letters_cnn_dg_tf_model():
     model = load_model(os.path.join(config.MODELS_DIR, config.letters_CNN_DataGen_tf))
 
     return model
+
+
+def get_digits_cnn_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.digits_CNN_tf))
+
+    return model
+
+
+def get_eng_letters_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.eng_letters_tf))
+
+    return model
+
+
+def get_eng_uppercase_letters_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.eng_uppercase_letters_tf))
+
+    return model
+
+
+def get_eng_uppercase_letters64_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.eng_uppercase_letters64_tf))
+
+    return model
+
+
+def get_eng_uppercase_letters64_v2_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.eng_uppercase_letters64_tf))
+
+    return model
+
+
+def get_touching_dgts_L_classfier_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.touching_dgts_L_classifier_tf_model))
+
+    return model
+
+
+def get_touching_dgts_C2_classfier_tf_model():
+    model = load_model(os.path.join(config.MODELS_DIR, config.touching_dgts_C2_classifier_tf_model))
+
+    return model

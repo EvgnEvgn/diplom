@@ -201,6 +201,7 @@ def detect_table_boxes(img, result_path="Output"):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     (thresh, img_bin) = cv2.threshold(img, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)  # Thresholding the image
     img_bin = 255 - img_bin  # Invert the image
+    cv2.imwrite(os.path.join(result_path, "detect_table_boxes_img_bin.jpg"), img_bin)
 
     # Defining a kernel length
     kernel_length_verti = np.array(img).shape[1] // 140
@@ -216,10 +217,12 @@ def detect_table_boxes(img, result_path="Output"):
     # Morphological operation to detect verticle lines from an image
     img_temp1 = cv2.erode(img_bin, verticle_kernel, iterations=3)
     verticle_lines_img = cv2.dilate(img_temp1, verticle_kernel, iterations=50)
+    cv2.imwrite(os.path.join(result_path, "detect_table_boxes_verticle_lines_img.jpg"), verticle_lines_img)
 
     # Morphological operation to detect horizontal lines from an image
     img_temp2 = cv2.erode(img_bin, hori_kernel, iterations=3)
     horizontal_lines_img = cv2.dilate(img_temp2, hori_kernel, iterations=50)
+    cv2.imwrite(os.path.join(result_path, "detect_table_boxes_horizontal_lines_img.jpg"), horizontal_lines_img)
 
     # Weighting parameters, this will decide the quantity of an image to be added to make a new image.
     alpha = 0.5
@@ -229,9 +232,11 @@ def detect_table_boxes(img, result_path="Output"):
     # weight parameter to get a third image as summation of two image.
     img_final_bin = cv2.addWeighted(verticle_lines_img, alpha, horizontal_lines_img, beta, 0.0)
     img_final_bin = cv2.erode(~img_final_bin, kernel, iterations=3)
+    cv2.imwrite(os.path.join(result_path, "detect_table_boxes_img_final_bin_no_thresh.jpg"), img_final_bin)
+
     (thresh, img_final_bin) = cv2.threshold(img_final_bin, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
 
-    cv2.imwrite(os.path.join(result_path, "img_final_bin.jpg"), img_final_bin)
+    cv2.imwrite(os.path.join(result_path, "detect_table_boxes_img_final_bin_thresh.jpg"), img_final_bin)
 
     contours, hierarchy = cv2.findContours(
         img_final_bin, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -239,6 +244,14 @@ def detect_table_boxes(img, result_path="Output"):
     (contours, _) = sort_contours(contours, method="top-to-bottom")
 
     boxes = np.array([cv2.boundingRect(c) for c in contours])
+
+    img_cntrs = img.copy()
+    cv2.drawContours(img_cntrs, contours, -1, (0, 255, 0 ), 3)
+
+    cv2.imwrite(os.path.join(result_path, "detect_table_boxes_img_cntrs.jpg"), img_cntrs)
+    # filtered_rects = filtered_rects[filtered_rects[:, 2] > 10]
+    # filtered_rects = filtered_rects[filtered_rects[:, 3] > 10]
+
 
     return boxes
 
@@ -312,6 +325,11 @@ def detect_main_table_part1_box(img):
         x, y, w, h = cv2.boundingRect(c)
         if w > 3200 and 1000 < h < 1600:
             img_of_main_table = img[y:y + h, x:x + w]
+
+            cv2.imwrite("Output/detect_main_table_part1_box.jpg", img_of_main_table)
+
+            no_border = remove_borders(img_of_main_table)
+            cv2.imwrite("Output/no_border.jpg", no_border)
             break
 
     return img_of_main_table
@@ -361,6 +379,11 @@ def detect_main_table_part2_box(img, result_path):
 
         if w > 3200:
             main_table_part2 = img[y:y + h, x:x + w]
+            cv2.imwrite("Output/detect_main_table_part2_box.jpg", main_table_part2)
+            no_border = remove_borders(main_table_part2)
+            cv2.imwrite("Output/no_border_part2.jpg", no_border)
+
+            break
             # TODO: вернуть нужное изображение таблицы!!!
             # cropped_result_filename_path = os.path.join(result_path, "CroppedImages", str(idx) + '.jpg')
             # cv2.imwrite(cropped_result_filename_path, main_table_part2)
