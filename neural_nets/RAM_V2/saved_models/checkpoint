@@ -1,0 +1,6 @@
+model_checkpoint_path: "ram-centered-mnist-step-6-58"
+all_model_checkpoint_paths: "ram-centered-mnist-step-6-54"
+all_model_checkpoint_paths: "ram-centered-mnist-step-6-55"
+all_model_checkpoint_paths: "ram-centered-mnist-step-6-56"
+all_model_checkpoint_paths: "ram-centered-mnist-step-6-57"
+all_model_checkpoint_paths: "ram-centered-mnist-step-6-58"

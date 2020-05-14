@@ -8,13 +8,15 @@ from neural_nets.model_utils import *
 import emnist
 import matplotlib.pyplot as plt
 import cv2
+from helpers import save_in_JPG_by_pdf_2_image
 
 #input_path = r"InputData/Data"
 #output_path = r"Output"
 #extract_data_from_main_table(input_path, output_path)
 
-input_path = r"InputData/Data"
-output_path = r"Output"
+input_path = r"InputData/JpegData"
+output_path = r"Output_temp"
+#save_in_JPG_by_pdf_2_image(r'InputData/data_3.pdf', r'InputData/JpegData', start_index=57)
 extract_data_from_main_table(input_path, output_path)
 #
 # print(cv2.__version__)
@@ -37,4 +39,4 @@ extract_data_from_main_table(input_path, output_path)
 # print(train_accuracy)
 # print(test_accuracy)
 
-print(emnist.list_datasets())
+#print(emnist.list_datasets())

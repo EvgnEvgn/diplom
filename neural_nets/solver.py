@@ -15,7 +15,7 @@ class Solver(object):
 
     To train a model, you will first construct a Solver instance, passing the
     model, dataset, and various options (learning rate, batch size, etc) to the
-    constructor. You will then call the train() method to run the optimization
+    constructor. You will then call the train() method to train the optimization
     procedure and train the model.
 
     After the train() method returns, model.params will contain the parameters
@@ -60,11 +60,11 @@ class Solver(object):
         label for X[i].
 
       Returns:
-      If y is None, run a test-time forward pass and return:
+      If y is None, train a test-time forward pass and return:
       - scores: Array of shape (N, C) giving classification scores for X where
         scores[i, c] gives the score of class c for X[i].
 
-      If y is not None, run a training time forward and backward pass and
+      If y is not None, train a training time forward and backward pass and
       return a tuple of:
       - loss: Scalar giving the loss
       - grads: Dictionary with the same keys as self.params mapping parameter
@@ -94,7 +94,7 @@ class Solver(object):
           learning rate is multiplied by this value.
         - batch_size: Size of minibatches used to compute loss and gradient
           during training.
-        - num_epochs: The number of epochs to run for during training.
+        - num_epochs: The number of epochs to train for during training.
         - print_every: Integer; training losses will be printed every
           print_every iterations.
         - verbose: Boolean; if set to false then no output will be printed

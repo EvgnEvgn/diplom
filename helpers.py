@@ -15,15 +15,15 @@ def rotateImage(image, angle):
     return result
 
 
-def save_in_JPG_by_pdf_2_image(path_to_pdf_file, path_to_folder, common_filename='page_'):
+def save_in_JPG_by_pdf_2_image(path_to_pdf_file, path_to_folder, common_filename='page_', start_index=1):
     # Path of the pdf
     PDF_file = path_to_pdf_file
 
     # Store all the pages of the PDF in a variable
-    pages = convert_from_path(PDF_file, dpi=300, thread_count=5, first_page=0, last_page=2)
+    pages = convert_from_path(PDF_file, dpi=400, thread_count=5)
 
     # Counter to store images of each page of PDF to image
-    image_counter = 1
+    image_counter = start_index
 
     # Iterate through all the pages stored above
     for page in pages:
@@ -204,7 +204,7 @@ def detect_table_boxes(img, result_path="Output"):
     cv2.imwrite(os.path.join(result_path, "detect_table_boxes_img_bin.jpg"), img_bin)
 
     # Defining a kernel length
-    kernel_length_verti = np.array(img).shape[1] // 140
+    kernel_length_verti = np.array(img).shape[1] // 120
     kernel_length_hori = np.array(img).shape[1] // 80
 
     # A verticle kernel of (1 X kernel_length), which will detect all the verticle lines from the image.
@@ -246,12 +246,11 @@ def detect_table_boxes(img, result_path="Output"):
     boxes = np.array([cv2.boundingRect(c) for c in contours])
 
     img_cntrs = img.copy()
-    cv2.drawContours(img_cntrs, contours, -1, (0, 255, 0 ), 3)
+    cv2.drawContours(img_cntrs, contours, -1, (0, 255, 0), 3)
 
     cv2.imwrite(os.path.join(result_path, "detect_table_boxes_img_cntrs.jpg"), img_cntrs)
     # filtered_rects = filtered_rects[filtered_rects[:, 2] > 10]
     # filtered_rects = filtered_rects[filtered_rects[:, 3] > 10]
-
 
     return boxes
 
@@ -279,6 +278,16 @@ def extract_table_rows(img, result_path):
         row = filtered_rects[row_idxs[idx]: row_idxs[idx + 1]]
         sorted_by_x = row[row[:, 0].argsort()]
         rows.append(sorted_by_x)
+
+    #todo: в будушем разобраться с возникновением лишних столбцов в конце таблиц
+    # (возможно при изъятии самих ячеек в методе detect_table_boxes делать упор на вертикальные и горизонтальные линии,
+    # как явные границы таблиц
+    if len(rows[0]) > 18:
+        new_rows = []
+        for row in rows:
+            new_row = row[:18]
+            new_rows.append(new_row)
+        rows = new_rows
 
     cols_count = len(rows[0])
     rows_imgs = np.zeros((rows_count, cols_count), dtype=object)
@@ -323,7 +332,8 @@ def detect_main_table_part1_box(img):
     idx = 1
     for c in contours:
         x, y, w, h = cv2.boundingRect(c)
-        if w > 3200 and 1000 < h < 1600:
+        # было условие 1000 < h < 1600
+        if w > 3200 and 1000 < h < 2100:
             img_of_main_table = img[y:y + h, x:x + w]
 
             cv2.imwrite("Output/detect_main_table_part1_box.jpg", img_of_main_table)
@@ -340,7 +350,7 @@ def extract_main_table_part1(img_path, result_path):
     # template_img = cv2.imread(config.TEMPLATE_IMG_PATH_P1)
 
     aligned_img = correct_table_skew(img)
-
+    cv2.imwrite("Output/aligned_img.jpg", aligned_img)
     main_table_part1 = detect_main_table_part1_box(aligned_img)
 
     return main_table_part1

@@ -1,0 +1,2 @@
+model_checkpoint_path: "savetchng_dgts_centered_RAM.ckpt"
+all_model_checkpoint_paths: "savetchng_dgts_centered_RAM.ckpt"

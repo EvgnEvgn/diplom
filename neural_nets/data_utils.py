@@ -877,3 +877,503 @@ def get_random_indexes_of_data(labels, label=0, size=10):
 # save_collected_touchingdgts_reduced_for_test()
 # collect_touching_digits()
 # save_2touching_dgts_data_64_in_float32()
+def filter1(a):
+    return ((a == 0))  # & (a <= 9))
+
+
+# with h5py.File("single_dgts_data_64_UINT8.h5", "r") as f:
+#     train = f["train"][:]
+#     test = f["test"][:]
+#     val = f["val"][:]
+#
+#
+#     train_labels = f["train_labels"][:]
+#     test_labels = f["test_labels"][:]
+#     val_labels = f["val_labels"][:]
+#
+#     train_y_idxs = np.where(filter1(train_labels))[0]
+#     test_y_idxs = np.where(filter1(test_labels))[0]
+#     val_y_idxs = np.where(filter1(val_labels))[0]
+#
+#     train_X = train[train_y_idxs]
+#     train_X = np.divide(train_X, 255).astype("float32")
+#     train_X = np.reshape(train_X, (train_X.shape[0], train_X.shape[1] * train_X.shape[2]))
+#     train_Y = train_labels[train_y_idxs]
+#     train_X = train_X[0:-1] #remove last zero value
+#     train_Y = train_Y[0:-1] #remove last zero value
+#     #train_Y -= 10 # start from zero (10-99 coming to 0-89)
+#
+#     test_X = test[test_y_idxs]
+#     test_X = np.divide(test_X, 255).astype("float32")
+#     test_X = np.reshape(test_X, (test_X.shape[0], test_X.shape[1] * test_X.shape[2]))
+#     test_Y = test_labels[test_y_idxs]
+#     test_X = test_X[0:-1]  # remove last zero value
+#     test_Y = test_Y[0:-1]  # remove last zero value
+#     #test_Y -= 10 # start from zero (10-99 coming to 0-89)
+#
+#     val_X = val[val_y_idxs]
+#     val_X = np.divide(val_X, 255).astype("float32")
+#     val_X = np.reshape(val_X, (val_X.shape[0], val_X.shape[1] * val_X.shape[2]))
+#     val_Y = val_labels[val_y_idxs]
+#     val_X = val_X[0:-1]  # remove last zero value
+#     val_Y = val_Y[0:-1]  # remove last zero value
+#     #val_Y -= 10 # start from zero (10-99 coming to 0-89)
+#
+#     last_val = val_X[-1, :]
+#     last_val_y = val_Y[-1]
+#
+#     train_X = np.concatenate((train_X, val_X))
+#     train_Y = np.concatenate((train_Y, val_Y))
+#     val_X = test_X
+#     val_Y = test_Y
+#     plt.subplot(2,1,1)
+#     plt.imshow(train_X[-1, :].reshape((64, 64)))
+#     plt.title('Label: ' + str(train_Y[-1]))
+#     plt.subplot(2, 1, 2)
+#     plt.imshow(last_val.reshape((64, 64)))
+#     plt.title('Label: ' + str(last_val_y))
+#     plt.show()
+# val_idxs = get_random_indexes_of_digits(val_Y)
+# for label, idx in val_idxs.items():
+#     plt.imshow(val_X[idx].reshape((64,64)), cmap='gray')
+#     plt.show()
+#
+# test_idxs = get_random_indexes_of_digits(test_Y)
+# for label, idx in test_idxs.items():
+#     plt.imshow(test_X[idx].reshape((64, 64)), cmap='gray')
+#     plt.show()
+
+# dataset = {
+#     'train_X': train_X, 'train_Y': train_Y,
+#     'val_X': val_X, 'val_Y': val_Y,
+#     'test_X': test_X, 'test_Y': test_Y
+# }
+
+# with open("3tchg_dgts_lbl_100_64_float32.bin", "wb") as file:
+#     pickle.dump(dataset, file)
+
+def clipped_img(img):
+    rows = img.shape[0]
+    cols = img.shape[1]
+    min_x = - 1
+    min_y = -1
+
+    max_x = -1
+    max_y = -1
+
+    for i in range(0, rows):
+        max_in_row = np.max(img[i, :])
+        if max_in_row != 0 and min_x == -1:
+            min_x = i
+
+        last_ind = i + 1
+        max_in_T_row = np.max(img[-last_ind, :])
+        if max_in_T_row != 0 and max_x == -1:
+            max_x = rows - i
+
+        if min_x != -1 and max_x != -1:
+            break
+
+    for i in range(0, cols):
+        max_in_col = np.max(img[:, i])
+        if max_in_col != 0 and min_y == -1:
+            min_y = i
+
+        last_ind = i + 1
+        max_in_T_col = np.max(img[:, -last_ind])
+        if max_in_T_col != 0 and max_y == -1:
+            max_y = cols - i
+
+        if min_y != -1 and max_y != -1:
+            break
+
+    clipped = img[min_x: max_x, min_y:max_y]
+    return clipped
+
+
+def extract_one_dgt_data_in_64size():
+    """
+    Extracting mnist data in 64 size
+    :return: dataset, contaning train,val and test data and labels
+    """
+    x_train = mnist.train_images()
+    y_train = mnist.train_labels()
+    x_test = mnist.test_images()
+    y_test = mnist.test_labels()
+
+    x_train = np.array([cv2.dilate(img, np.ones((3, 3)), iterations=1) for img in x_train])
+    x_train = np.array([clipped_img(img) for img in x_train])
+    x_train = np.array([cv2.resize(img, (64, 64)) for img in x_train])
+    x_train = np.array([np.pad(img, ((4, 4), (4, 4))) for img in x_train])
+    x_train = np.array([cv2.resize(img, (64, 64)) for img in x_train])
+
+    x_test = np.array([cv2.dilate(img, np.ones((3, 3)), iterations=1) for img in x_test])
+    x_test = np.array([clipped_img(img) for img in x_test])
+    x_test = np.array([cv2.resize(img, (64, 64)) for img in x_test])
+    x_test = np.array([np.pad(img, ((4, 4), (4, 4))) for img in x_test])
+    x_test = np.array([cv2.resize(img, (64, 64)) for img in x_test])
+
+    x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
+    x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
+    x_train = np.divide(x_train, 255).astype("float32")
+    x_test = np.divide(x_test, 255).astype("float32")
+    plt.subplot(2, 1, 1)
+    plt.imshow(x_train[11, :].reshape(64, 64))
+    plt.title('Label: ' + str(y_train[22]))
+    plt.subplot(2, 1, 2)
+    plt.imshow(x_test[23].reshape(64, 64))
+    plt.title('Label: ' + str(y_test))
+    plt.show()
+
+    dataset = {
+        'train_X': x_test, 'train_Y': y_test,
+        'val_X': x_test, 'val_Y': y_test,
+        'test_X': x_test, 'test_Y': y_test
+    }
+    with open("one_dgt_lbl_0-9_64_float32.bin", "wb") as file:
+        pickle.dump(dataset, file)
+
+
+def extract_nist_dgt_data_in_64size():
+    """
+    Extracting NIST 19 data in 64 size
+    :return: dataset, contaning train,val and test data and labels
+    """
+    with h5py.File("single_dgts_data_64_UINT8.h5", "r") as f:
+        x_train = f["train"][:]
+        x_test = f["test"][:]
+        #val = f["val"][:]
+
+        y_train = f["train_labels"][:]
+        y_test = f["test_labels"][:]
+        #val_labels = f["val_labels"][:]
+
+        #x_train = np.array([cv2.dilate(img, np.ones((3, 3)), iterations=1) for img in x_train])
+        x_train = np.array([clipped_img(img) for img in x_train])
+        x_train = np.array([cv2.resize(img, (64, 64)) for img in x_train])
+        x_train = np.array([np.pad(img, ((4, 4), (4, 4))) for img in x_train])
+        x_train = np.array([cv2.resize(img, (64, 64), interpolation=cv2.INTER_NEAREST) for img in x_train])
+
+        #x_test = np.array([cv2.dilate(img, np.ones((3, 3)), iterations=1) for img in x_test])
+        x_test = np.array([clipped_img(img) for img in x_test])
+        x_test = np.array([cv2.resize(img, (64, 64)) for img in x_test])
+        x_test = np.array([np.pad(img, ((4, 4), (4, 4))) for img in x_test])
+        x_test = np.array([cv2.resize(img, (64, 64), interpolation=cv2.INTER_NEAREST) for img in x_test])
+
+        x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
+        x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
+        x_train = np.divide(x_train, 255).astype("float32")
+        x_test = np.divide(x_test, 255).astype("float32")
+        plt.subplot(2, 1, 1)
+        plt.imshow(x_train[11, :].reshape(64, 64))
+        plt.title('Label: ' + str(y_train[22]))
+        plt.subplot(2, 1, 2)
+        plt.imshow(x_test[23].reshape(64, 64))
+        plt.title('Label: ' + str(y_test))
+        plt.show()
+
+        dataset = {
+            'train_X': x_test, 'train_Y': y_test,
+            'val_X': x_test, 'val_Y': y_test,
+            'test_X': x_test, 'test_Y': y_test
+        }
+        with open("nist_one_dgt_lbl_0-9_64_float32.bin", "wb") as file:
+            pickle.dump(dataset, file)
+
+
+def collect_data_for_train_5_col_classifier():
+    # with open("one_dgt_lbl_0-9_64_float32.bin", "rb") as file:
+    #     one_dgt_dataset = pickle.load(file)
+    #
+    #
+    with open("2tchg_dgts_10-99_64_val=test_float32.bin", "rb") as file:
+        two_tchg_dgts_dataset = pickle.load(file)
+    with open("3tchg_dgts_lbl_100_64_float32.bin", "rb") as file:
+        three_tchg_dgts_dataset = pickle.load(file)
+    dataset = None
+    # reduce one digit dataset
+    # one_train_X = one_dgt_dataset['train_X']
+    # one_train_Y = one_dgt_dataset['train_Y']
+    # reduced_one_train_size = 18000
+    # reduced_one_train_X = np.zeros((reduced_one_train_size, 64, 64, 1), dtype=np.float32)
+    # reduced_one_train_Y = np.zeros((reduced_one_train_size,), dtype=np.int64)
+    # # one_val_X = one_dgt_dataset['val_X']
+    # # one_val_Y = one_dgt_dataset['val_Y']
+    # reduced_one_test_size = 4500
+    # one_test_X = one_dgt_dataset['test_X']
+    # one_test_Y = one_dgt_dataset['test_Y']
+    # reduced_one_test_X = np.zeros((reduced_one_test_size, 64, 64, 1), dtype=np.float32)
+    # reduced_one_test_Y = np.zeros((reduced_one_test_size,), dtype=np.int64)
+    #
+    # unique_labels = set(one_train_Y)
+    # # except label '0'
+    # unique_labels.remove(0)
+    # idx = 0
+    # size = 2000
+    # for lbl in unique_labels:
+    #     indxs = get_random_indexes_of_data(one_train_Y, label=lbl, size=size)
+    #     x = one_train_X[indxs]
+    #     reduced_one_train_X[idx * size: (idx + 1) * size, :] = x
+    #     reduced_one_train_Y[idx*size: (idx + 1) * size] = lbl - 1
+    #     idx += 1
+    #
+    # unique_labels = set(one_test_Y)
+    # # except label '0'
+    # unique_labels.remove(0)
+    # idx = 0
+    # size = 500
+    # for lbl in unique_labels:
+    #     indxs = get_random_indexes_of_data(one_test_Y, label=lbl, size=size)
+    #     x = one_test_X[indxs]
+    #     reduced_one_test_X[idx * size: (idx + 1) * size, :] = x
+    #     reduced_one_test_Y[idx*size: (idx + 1) * size] = lbl - 1
+    #     idx += 1
+    #
+    # #convert X to N,D
+    # reduced_one_train_X = np.reshape(reduced_one_train_X,
+    #                                  (reduced_one_train_X.shape[0], reduced_one_train_X.shape[1] * reduced_one_train_X.shape[2]))
+    # reduced_one_test_X = np.reshape(reduced_one_test_X,
+    #                                 (reduced_one_test_X.shape[0], reduced_one_test_X.shape[1] * reduced_one_test_X.shape[2]))
+    # 2tchgn digit, from 10 to 99 values, labels from '9 to 98'
+    two_train_X = two_tchg_dgts_dataset["train_X"]
+    two_train_Y = two_tchg_dgts_dataset["train_Y"]
+    # two_train_Y += 9
+    # two_val_X = two_tchg_dgts_dataset["val_X"]
+    # two_val_Y = two_tchg_dgts_dataset["val_Y"]
+    # two_val_Y += 9
+    two_test_X = two_tchg_dgts_dataset["test_X"]
+    two_test_Y = two_tchg_dgts_dataset["test_Y"]
+    # two_test_Y += 9
+    # 3tchng digit, only value '100' with label '99'
+    three_train_X = three_tchg_dgts_dataset["train_X"]
+    three_train_Y = three_tchg_dgts_dataset["train_Y"]
+    three_train_Y[:] = 90
+    # three_val_X = three_tchg_dgts_dataset["val_X"]
+    # three_val_Y = three_tchg_dgts_dataset["val_Y"]
+    # three_val_Y[:] = 99
+    three_test_X = three_tchg_dgts_dataset["test_X"]
+    three_test_Y = three_tchg_dgts_dataset["test_Y"]
+    three_test_Y[:] = 90
+    # train_X = np.concatenate((reduced_one_train_X, two_train_X, three_train_X))
+    # train_Y = np.concatenate((reduced_one_train_Y, two_train_Y, three_train_Y))
+    train_X = np.concatenate((two_train_X, three_train_X))
+    train_Y = np.concatenate((two_train_Y, three_train_Y))
+    # val_X = np.concatenate((reduced_one_test_X, two_val_X, three_val_X))
+    # val_Y = np.concatenate((reduced_one_test_Y, two_val_Y, three_val_Y))
+    # val_X = np.concatenate((two_val_X, three_val_X))
+    # val_Y = np.concatenate((two_val_Y, three_val_Y))
+    # test_X = np.concatenate((reduced_one_test_X, two_test_X, three_test_X))
+    # test_Y = np.concatenate((reduced_one_test_Y, two_test_Y, three_test_Y))
+    test_X = np.concatenate((two_test_X, three_test_X))
+    test_Y = np.concatenate((two_test_Y, three_test_Y))
+    dataset = {
+        "train_X": train_X, "train_Y": train_Y,
+        # "val_X": val_X, "val_Y": val_Y,
+        "test_X": test_X, "test_Y": test_Y
+    }
+    with open("dataset_lbl_10-100_val=test_64_float32.bin", "wb") as file:
+        pickle.dump(dataset, file)
+
+
+def get_tchng_dgts_small_dataset(filename):
+    with open(filename, "rb") as file:
+        dataset = pickle.load(file)
+
+    train_X = dataset["train_X"]
+    train_Y = dataset["train_Y"]
+
+    # val_X = dataset["val_X"]
+    # val_Y = dataset["val_Y"]
+
+    test_X = dataset["test_X"]
+    test_Y = dataset["test_Y"]
+
+    return train_X, train_Y, test_X, test_Y
+
+
+def make_dataset_for_date_col():
+    global size, train, test
+    # make dataset for date classifier
+    # get mnist data
+    with open("nist_one_dgt_lbl_0-9_64_float32.bin", "rb") as file:
+        one_dgt_dataset = pickle.load(file)
+    # reduce one digit dataset
+    one_train_X = one_dgt_dataset['train_X']
+    one_train_Y = one_dgt_dataset['train_Y']
+    reduced_one_train_size = 20000
+    reduced_one_train_X = np.zeros((reduced_one_train_size, 64, 64, 1), dtype=np.float32)
+    reduced_one_train_Y = np.zeros((reduced_one_train_size,), dtype=np.int64)
+    # one_val_X = one_dgt_dataset['val_X']
+    # one_val_Y = one_dgt_dataset['val_Y']
+    reduced_one_test_size = 5000
+    one_test_X = one_dgt_dataset['test_X']
+    one_test_Y = one_dgt_dataset['test_Y']
+    reduced_one_test_X = np.zeros((reduced_one_test_size, 64, 64, 1), dtype=np.float32)
+    reduced_one_test_Y = np.zeros((reduced_one_test_size,), dtype=np.int64)
+
+    unique_labels = set(one_train_Y)
+
+    idx = 0
+    size = 2000
+    for lbl in unique_labels:
+        indxs = get_random_indexes_of_data(one_train_Y, label=lbl, size=size)
+        x = one_train_X[indxs]
+        reduced_one_train_X[idx * size: (idx + 1) * size, :] = x
+        reduced_one_train_Y[idx * size: (idx + 1) * size] = lbl
+        idx += 1
+    unique_labels = set(one_test_Y)
+
+    idx = 0
+    size = 500
+    for lbl in unique_labels:
+        indxs = get_random_indexes_of_data(one_test_Y, label=lbl, size=size)
+        x = one_test_X[indxs]
+        reduced_one_test_X[idx * size: (idx + 1) * size, :] = x
+        reduced_one_test_Y[idx * size: (idx + 1) * size] = lbl
+        idx += 1
+    # convert X to N,D
+    reduced_one_train_X = np.reshape(reduced_one_train_X,
+                                     (reduced_one_train_X.shape[0],
+                                      reduced_one_train_X.shape[1] * reduced_one_train_X.shape[2]))
+    reduced_one_test_X = np.reshape(reduced_one_test_X,
+                                    (
+                                        reduced_one_test_X.shape[0],
+                                        reduced_one_test_X.shape[1] * reduced_one_test_X.shape[2]))
+
+    # 2tchgn digit, from 10 to 99 values, labels from '9 to 98'
+    def two_dgt_for_date_filter(a):
+        # from 00,01,02 .. to 29, 30, 31
+        return ((a >= 0) & (a <= 31))
+
+    with h5py.File("2touching_dgts_data_64_float32_zip2.h5", "r") as f:
+        train = f["train"][:]
+        test = f["test"][:]
+        val = f["val"][:]
+
+        train_labels = f["train_labels"][:]
+        test_labels = f["test_labels"][:]
+        val_labels = f["val_labels"][:]
+
+        train_y_idxs = np.where(two_dgt_for_date_filter(train_labels))[0]
+        test_y_idxs = np.where(two_dgt_for_date_filter(test_labels))[0]
+        val_y_idxs = np.where(two_dgt_for_date_filter(val_labels))[0]
+
+        two_dgt_train_X = train[train_y_idxs]
+        # two_dgt_train_X = np.array([clipped_img(img) for img in two_dgt_train_X])
+        # two_dgt_train_X = np.array([cv2.resize(img, (64, 64)) for img in two_dgt_train_X])
+        # two_dgt_train_X = np.array([np.pad(img, ((4, 4), (4, 4))) for img in two_dgt_train_X])
+        # two_dgt_train_X = np.array([cv2.resize(img, (64, 64), interpolation=cv2.INTER_NEAREST) for img in two_dgt_train_X])
+
+        #two_dgt_train_X = np.divide(two_dgt_train_X, 255).astype("float32")
+        two_dgt_train_X = np.reshape(two_dgt_train_X,
+                                     (two_dgt_train_X.shape[0], two_dgt_train_X.shape[1] * two_dgt_train_X.shape[2]))
+
+        two_dgt_train_Y = train_labels[train_y_idxs]
+        two_dgt_train_X = two_dgt_train_X[0:-1]  # remove last zero value
+        two_dgt_train_Y = two_dgt_train_Y[0:-1]  # remove last zero value
+        two_dgt_train_Y += 10  # start from 10 (00-31 coming to 10-41)
+
+        two_dgt_test_X = test[test_y_idxs]
+        # two_dgt_test_X = np.array([clipped_img(img) for img in two_dgt_test_X])
+        # two_dgt_test_X = np.array([cv2.resize(img, (64, 64)) for img in two_dgt_test_X])
+        # two_dgt_test_X = np.array([np.pad(img, ((4, 4), (4, 4))) for img in two_dgt_test_X])
+        # two_dgt_test_X = np.array([cv2.resize(img, (64, 64), interpolation=cv2.INTER_NEAREST) for img in two_dgt_test_X])
+
+        two_dgt_test_X = np.reshape(two_dgt_test_X,
+                                    (two_dgt_test_X.shape[0], two_dgt_test_X.shape[1] * two_dgt_test_X.shape[2]))
+
+        #two_dgt_test_X = np.divide(two_dgt_test_X, 255).astype("float32")
+
+        two_dgt_test_Y = test_labels[test_y_idxs]
+        two_dgt_test_X = two_dgt_test_X[0:-1]  # remove last zero value
+        two_dgt_test_Y = two_dgt_test_Y[0:-1]  # remove last zero value
+        two_dgt_test_Y += 10  # start from 10 (00-31 coming to 9-41)
+
+        two_dgt_val_X = val[val_y_idxs]
+        # two_dgt_val_X = np.array([clipped_img(img) for img in two_dgt_val_X])
+        # two_dgt_val_X = np.array([cv2.resize(img, (64, 64)) for img in two_dgt_val_X])
+        # two_dgt_val_X = np.array([np.pad(img, ((4, 4), (4, 4))) for img in two_dgt_val_X])
+        # two_dgt_val_X = np.array(
+        #     [cv2.resize(img, (64, 64), interpolation=cv2.INTER_NEAREST) for img in two_dgt_val_X])
+
+        two_dgt_val_X = np.reshape(two_dgt_val_X,
+                                   (two_dgt_val_X.shape[0], two_dgt_val_X.shape[1] * two_dgt_val_X.shape[2]))
+        #two_dgt_val_X = np.divide(two_dgt_val_X, 255).astype("float32")
+
+        two_dgt_val_Y = val_labels[val_y_idxs]
+        two_dgt_val_X = two_dgt_val_X[0:-1]  # remove last zero value
+        two_dgt_val_Y = two_dgt_val_Y[0:-1]  # remove last zero value
+        two_dgt_val_Y += 10  # start from 10 (00-31 coming to 9-41)
+
+        last_val = two_dgt_val_X[-1, :]
+        last_val_y = two_dgt_val_Y[-1]
+
+        two_dgt_train_X = np.concatenate((two_dgt_train_X, two_dgt_val_X))
+        two_dgt_train_Y = np.concatenate((two_dgt_train_Y, two_dgt_val_Y))
+        # plt.subplot(2, 1, 1)
+        # plt.imshow(train_X[-1, :].reshape((64, 64)))
+        # plt.title('Label: ' + str(train_Y[-1]))
+        # plt.subplot(2, 1, 2)
+        # plt.imshow(last_val.reshape((64, 64)))
+        # plt.title('Label: ' + str(last_val_y))
+        # plt.show()
+
+        # train_indxs = get_random_indexes_of_digits(train_Y)
+        # for label, idx in train_indxs.items():
+        #     plt.imshow(train_X[idx].reshape((64,64)))
+        #     plt.title("LABEL: " + str(label))
+        #     plt.show()
+    train_X = np.concatenate((reduced_one_train_X, two_dgt_train_X))
+    train_Y = np.concatenate((reduced_one_train_Y, two_dgt_train_Y))
+    test_X = np.concatenate((reduced_one_test_X, two_dgt_test_X))
+    test_Y = np.concatenate((reduced_one_test_Y, two_dgt_test_Y))
+    dataset = {
+        "train_X": train_X, "train_Y": train_Y,
+        # "val_X": val_X, "val_Y": val_Y,
+        "test_X": test_X, "test_Y": test_Y
+    }
+    with open("dataset_lbl_0-9-00-31_val=test_64_float32.bin", "wb") as file:
+        pickle.dump(dataset, file)
+
+
+# with h5py.File("single_dgts_data_64_UINT8.h5", "r") as f:
+#     #train = f["train"][:]
+#     #test = f["test"][:]
+#     val = f["val"][:]
+#
+#     #train_labels = f["train_labels"][:]
+#     #test_labels = f["test_labels"][:]
+#     val_labels = f["val_labels"][:]
+#
+#     # train_y_idxs = np.where(filter1(train_labels))[0]
+#     # test_y_idxs = np.where(filter1(test_labels))[0]
+#     # val_y_idxs = np.where(filter1(val_labels))[0]
+#     val = np.array([clipped_img(img) for img in val])
+#     val = np.array([cv2.resize(img, (64, 64), interpolation=cv2.INTER_AREA) for img in val])
+#     val = np.array([np.pad(img, ((4, 4), (4, 4))) for img in val])
+#     val = np.array([cv2.resize(img, (64, 64), interpolation=cv2.INTER_CUBIC) for img in val])
+#     train_indx = get_random_indexes_of_digits(val_labels)
+#     for lbl, indx in train_indx.items():
+#         plt.imshow(val[indx, :].reshape(64, 64))
+#         plt.title("Label: " + str(lbl))
+#         plt.show()
+
+#make_dataset_for_date_col()
+# with open("dataset_lbl_0-9-00-31_val=test_64_float32_alt.bin", "rb") as file:
+#     dataset = pickle.load(file)
+#
+# train_X = dataset["train_X"]
+# train_Y = dataset["train_Y"]
+# kek = 0
+# #
+# indxs = np.where(train_Y == 16)[0]
+# train_X = train_X[indxs]
+# train_Y = train_Y[indxs]
+# train_Y -= 10
+# #train_indx = get_random_indexes_of_digits(train_Y)
+# for indx in range(0, len(train_Y)):
+#     plt.imshow(train_X[indx, :].reshape(64, 64))
+#     plt.title("Label: " + str(train_Y[indx]))
+#     plt.show()
+# extract_one_dgt_data_in_64size()
+#extract_nist_dgt_data_in_64size()

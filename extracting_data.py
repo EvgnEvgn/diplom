@@ -127,6 +127,286 @@ def segment_letters(img):
     return letters
 
 
+def clipped_img(img):
+    rows = img.shape[0]
+    cols = img.shape[1]
+    min_x = - 1
+    min_y = -1
+
+    max_x = -1
+    max_y = -1
+
+    for i in range(0, rows):
+        max_in_row = np.max(img[i, :])
+        if max_in_row != 0 and min_x == -1:
+            min_x = i
+
+        last_ind = i + 1
+        max_in_T_row = np.max(img[-last_ind, :])
+        if max_in_T_row != 0 and max_x == -1:
+            max_x = rows - i
+
+        if min_x != -1 and max_x != -1:
+            break
+
+    for i in range(0, cols):
+        max_in_col = np.max(img[:, i])
+        if max_in_col != 0 and min_y == -1:
+            min_y = i
+
+        last_ind = i + 1
+        max_in_T_col = np.max(img[:, -last_ind])
+        if max_in_T_col != 0 and max_y == -1:
+            max_y = cols - i
+
+        if min_y != -1 and max_y != -1:
+            break
+
+    clipped = img[min_x: max_x, min_y:max_y]
+    return clipped
+
+
+def is_empty_img(img):
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grayscale = cv2.GaussianBlur(grayscale, (3, 3), 0)
+    _, img_bin = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
+    img_row_sum = cv2.reduce(img_bin, 1, cv2.REDUCE_AVG).reshape(-1)
+    total_sum = np.sum(img_row_sum)
+
+    if total_sum < 100:
+        return True
+    else:
+        return False
+
+
+def segment_rus_text_score_col6(img):
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
+    max_v = float(grayscale.max())
+    min_v = float(grayscale.min())
+    x = max_v - ((max_v - min_v) / 2)
+    _, img_bin = cv2.threshold(grayscale, x, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
+
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
+    erode_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+
+    dilate = cv2.dilate(img_bin, dilate_kernel, iterations=10)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "dilate.jpg"), dilate)
+
+
+    contours, hierarchy = cv2.findContours(dilate.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    rects = [cv2.boundingRect(ctr) for ctr in contours]
+
+    extracted_rus_text = None
+    for rect in rects:
+        x, y, w, h = rect
+        if w > 150 and h > 40:
+            segment = img_bin[y:y + h, x:x + w]
+            # digit = cv2.resize(digit, (20, 20), interpolation=cv2.INTER_AREA)
+            # digit = np.pad(digit, ((4, 4), (4, 4)), "constant")
+            # digit = cv2.resize(digit, (28, 28), interpolation=cv2.INTER_AREA)
+            # digit = cv2.dilate(digit, np.ones((1, 1), dtype=np.uint8))
+            # symbol = cv2.dilate(symbol, (3, 3))
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "rus_text.jpg"), segment)
+            #img_row_sum = cv2.reduce(segment, 1, cv2.REDUCE_AVG).reshape(-1)
+            # th_hori = 20
+            # H = segment.shape[0]
+            # W = segment.shape[1]
+            # uppers_hori = [y for y in range(H - 1) if img_row_sum[y] <= th_hori and img_row_sum[y + 1] > th_hori]
+            # lowers_hori = [y for y in range(H - 1) if img_row_sum[y] > th_hori and img_row_sum[y + 1] <= th_hori]
+            # segment = cv2.cvtColor(segment, cv2.COLOR_GRAY2BGR)
+            # for x in uppers_hori:
+            #     cv2.line(segment, (0, x), (W, x), (255, 0, 0), 1)
+            # for x in lowers_hori:
+            #     cv2.line(segment, (0, x), (W, x), (0, 255, 0), 1)
+            segment = clipped_img(segment)
+            extracted_rus_text = segment
+            break
+
+    return extracted_rus_text
+
+
+def segment_date_from_col3(img):
+    if is_empty_img(img):
+        return None
+
+    grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
+    max_v = float(grayscale.max())
+    min_v = float(grayscale.min())
+    x = max_v - ((max_v - min_v) / 2)
+    _, img_bin = cv2.threshold(grayscale, x, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    cv2.imwrite(os.path.join("Output/CroppedImages", "img_bin.jpg"), img_bin)
+
+    rotated = img_bin
+    img_row_sum = cv2.reduce(rotated, 1, cv2.REDUCE_AVG).reshape(-1)  # np.sum(img_bin,axis=1).tolist()
+
+    th_hori = 2
+    H = img_bin.shape[0]
+    W = img_bin.shape[1]
+    uppers_hori = [y for y in range(H - 1) if img_row_sum[y] <= th_hori and img_row_sum[y + 1] > th_hori]
+    lowers_hori = [y for y in range(H - 1) if img_row_sum[y] > th_hori and img_row_sum[y + 1] <= th_hori]
+
+    # rotated = cv2.cvtColor(rotated, cv2.COLOR_GRAY2BGR)
+    # for x in uppers_hori:
+    #     cv2.line(rotated, (0, x), (W, x), (255, 0, 0), 1)
+    # for x in lowers_hori:
+    #     cv2.line(rotated, (0, x), (W, x), (0, 255, 0), 1)
+    if len(uppers_hori) == 0 and len(lowers_hori) == 0:
+        return None
+
+    if len(uppers_hori) == 0 and len(lowers_hori) != 0:
+        uppers_hori.append(0)
+    if len(lowers_hori) == 0 and len(uppers_hori) != 0:
+        lowers_hori.append(H - 1)
+    elif uppers_hori[-1] > lowers_hori[-1]:
+        lowers_hori.append(H - 1)
+
+    th_verti = 8
+    y_upper = uppers_hori[-1]
+    y_lower = lowers_hori[-1]
+    new_img = rotated[uppers_hori[-1]:lowers_hori[-1], :]
+
+    cv2.imwrite(os.path.join("Output/CroppedImages", "new_img.jpg"), new_img)
+
+    # rotated = deskew_v3(new_img, new_img.shape[1], new_img.shape[0])
+    rotated = new_img
+    img_col_sum = cv2.reduce(rotated, 0, cv2.REDUCE_AVG).reshape(-1)
+    H = rotated.shape[0]
+    W = rotated.shape[1]
+
+    left_verti = [x for x in range(W - 1) if img_col_sum[x] <= th_verti and img_col_sum[x + 1] > th_verti]
+    right_verti = [x for x in range(W - 1) if img_col_sum[x] > th_verti and img_col_sum[x + 1] <= th_verti]
+
+    if len(left_verti) == 0:
+        return None
+    if len(right_verti) == 0:
+        return None
+
+    if left_verti[0] >= right_verti[0]:
+        left_verti.insert(0, 0)
+    if left_verti[-1] > right_verti[-1]:
+        right_verti.append(W - 1)
+
+    left_len = len(left_verti)
+    right_len = len(right_verti)
+    if left_len != right_len:
+        print("left_len != right_len. Errors: ")
+
+    new_img = rotated[:, left_verti[0]:right_verti[-1]]
+    # new_img = np.pad(new_img, ((2, 2), (2, 2)))
+    new_img = cv2.resize(new_img, (220, 60))
+    rotated = new_img
+    H = rotated.shape[0]
+    W = rotated.shape[1]
+
+    img_col_sum = cv2.reduce(rotated, 0, cv2.REDUCE_AVG).reshape(-1)
+    img_row_sum = cv2.reduce(rotated, 1, cv2.REDUCE_AVG).reshape(-1)
+    left_verti = [x for x in range(W - 1) if img_col_sum[x] <= th_verti and img_col_sum[x + 1] > th_verti]
+    right_verti = [x for x in range(W - 1) if img_col_sum[x] > th_verti and img_col_sum[x + 1] <= th_verti]
+
+    if len(left_verti) == 0:
+        return None
+
+    if len(right_verti) == 0:
+        return None
+    if left_verti[0] >= right_verti[0]:
+        left_verti.insert(0, 0)
+    if left_verti[-1] > right_verti[-1]:
+        right_verti.append(W - 1)
+
+    left_len = len(left_verti)
+    right_len = len(right_verti)
+    if left_len != right_len:
+        print("left_len != right_len. Errors: ")
+
+    chars_borders = []
+    for idx in range(0, len(left_verti)):
+        left_border = left_verti[idx]
+        right_border = right_verti[idx]
+
+        diff = right_border - left_border
+        min_char_thresh = 5
+        max_char_thresh = 90
+        if diff < min_char_thresh:
+            continue
+        if diff > max_char_thresh:
+            continue
+        roi = rotated[:, left_border:right_border]
+        sum_by_verti = np.sum(img_col_sum[left_border:right_border])
+        sum_by_hori = cv2.reduce(roi, 1, cv2.REDUCE_AVG).reshape(-1)
+        first_valued_pixel_in_rows = np.where(sum_by_hori > 5)[0][0]
+        thresh_for_hori = roi.shape[0] / 2
+        if sum_by_verti < 350:
+            continue
+        chars_borders.append((left_border, right_border))
+
+    # # clear character borders
+    # # find first two characters
+    # first_boxes = []
+    # first_part_ch = None
+    # for l, r in chars_borders:
+    #     if l < 60 and r < 90:
+    #         first_boxes.append((l, r))
+    # length = len(first_boxes)
+    # if length > 1:
+    #     left = first_boxes[0][0]
+    #     right = first_boxes[-1][1]
+    #
+    #     first_part_ch = rotated[:, left:right]
+    #     cv2.imwrite(os.path.join("Output/CroppedImages", "first_part_ch.jpg"), first_part_ch)
+    #
+    # for l, r in chars_borders:
+    #     is_one_ch = r - l < 30
+    #     is_two_ch = r - l < 40
+    #     is_more_ch = r - l < 65
+
+    # extract characters
+    extracted_numbers = []
+    idx = 1
+    for l, r in chars_borders:
+        roi = rotated[:, l:r]
+
+        # roi = cv2.dilate(roi, np.ones((3, 3)), iterations=2)
+        # result = cv2.erode(result, np.ones((2, 2)), iterations=1)
+        result = cv2.resize(roi, (80, 80), interpolation=cv2.INTER_CUBIC)
+        result = np.pad(result, ((10, 10), (10, 10)))
+
+        result = rotate_img(result)
+        clipped = clipped_img(result)
+        result = np.pad(clipped, ((5, 5), (5, 5)))
+        result = cv2.resize(result, (64, 64), interpolation=cv2.INTER_NEAREST)
+        # result = deskew_v2(result)
+        cv2.imwrite(os.path.join("Output/CroppedImages", "ro1" + str(idx) + ".jpg"), result)
+        extracted_numbers.append(result)
+        idx += 1
+
+    # rotated = cv2.cvtColor(rotated, cv2.COLOR_GRAY2BGR)
+    # for l, r in chars_borders:
+    #     cv2.line(rotated, (l, 0), (l, H), (0, 255, 0), 1)
+    #     cv2.line(rotated, (r, 0), (r, H), (255, 0, 0), 1)
+    # for x in right_verti:
+    #     cv2.line(rotated, (x, 0), (x, H), (255, 0, 0), 1)
+    # for x in left_verti:
+    #     cv2.line(rotated, (x, 0), (x, H), (0, 255, 0), 1)
+
+    # plt.subplot(2, 2, 1)
+    # plt.imshow(img)
+    # # #plt.hist(img_bin.ravel(), bins=261) #range=(0.0, 1.0), fc='k', ec='k')
+    # plt.subplot(2, 2, 2)
+    # plt.plot(img_col_sum)
+    # plt.subplot(2, 2, 3)
+    # plt.imshow(img_bin)
+    # plt.subplot(2, 2, 4)
+    # plt.imshow(rotated)
+    # plt.show()
+
+    return extracted_numbers
+
+
 def segment_touching_digits(img):
     grayscale = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # grayscale = cv2.GaussianBlur(grayscale, (5, 5), 0)
@@ -136,13 +416,13 @@ def segment_touching_digits(img):
     # edged = cv2.Canny(grayscale, 50, 200, 255)
     # cv2.imwrite(os.path.join("Output/CroppedImages", "edged.jpg"), edged)
 
-    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
+    dilate_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
     erode_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
     thresh, img_bin = cv2.threshold(grayscale, 127, 255, cv2.THRESH_BINARY_INV)
     cv2.imwrite(os.path.join("Output/CroppedImages", "threshold_img_bin.jpg"), img_bin)
 
-    img_dilated = cv2.dilate(img_bin, dilate_kernel, iterations=5)
+    img_dilated = cv2.dilate(img_bin, dilate_kernel, iterations=7)
     cv2.imwrite(os.path.join("Output/CroppedImages", "img_dilated.jpg"), img_dilated)
 
     img_eroded = cv2.erode(img_dilated, erode_kernel, iterations=2)
@@ -161,13 +441,14 @@ def segment_touching_digits(img):
         if w > 50 and h > 40:
             ROI = img[y:y + h, x:x + w]
             cv2.imwrite(os.path.join("Output/CroppedImages", "ROI" + str(idx) + ".jpg"), ROI)
-            #ROI = np.pad(ROI, ((5, 5), (5, 5))))
-            resized = cv2.resize(ROI, (64, 64), interpolation=cv2.INTER_AREA)
 
+            resized = cv2.resize(ROI, (64, 64))
+            # resized = np.pad(resized, ((5, 5), (5, 5)))
+            # resized = cv2.resize(resized, (64, 64))
             cv2.imwrite(os.path.join("Output/CroppedImages", "resized" + str(idx) + ".jpg"), resized)
 
             segmented_gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-            # segmented_blur = cv2.GaussianBlur(segmented_gray, (5, 5), 0)
+            segmented_gray = cv2.GaussianBlur(segmented_gray, (5, 5), 0)
 
             max_v = float(segmented_gray.max())
             min_v = float(segmented_gray.min())
@@ -175,23 +456,29 @@ def segment_touching_digits(img):
 
             thresh, img_bin = cv2.threshold(segmented_gray, x, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
 
-            #dilated = cv2.dilate(img_bin, np.ones((4, 4)), iterations=1)
-            #eroded = cv2.erode(dilated, np.ones((2, 2)), iterations=1)
-            #cv2.imwrite(os.path.join("Output/CroppedImages", "symbol_dilated" + str(idx) + ".jpg"), eroded)
+            # dilated = cv2.dilate(img_bin, np.ones((5, 5)), iterations=3)
+            # eroded = cv2.erode(dilated, np.ones((2, 2)), iterations=1)
 
-            segmented_img = img_bin
+            clipped = clipped_img(img_bin)
+
+            result = np.pad(clipped, ((4, 4), (4, 4)))
+            result = cv2.resize(result, (64, 64))
+
+            cv2.imwrite(os.path.join("Output/CroppedImages", "symbol_dilated" + str(idx) + ".jpg"), result)
+
+            segmented_img = result
 
     return segmented_img
 
 
 def watershed_asdas(img, img_bin):
     D = ndimage.distance_transform_edt(img_bin)
-    localMax = peak_local_max(D, indices=False, min_distance=5,
+    localMax = peak_local_max(D, indices=False, min_distance=45,
                               labels=img_bin)
     # perform a connected component analysis on the local peaks,
     # using 8-connectivity, then appy the Watershed algorithm
     markers = ndimage.label(localMax, structure=np.ones((3, 3)))[0]
-    labels = watershed(-D, markers, mask=img_bin)
+    labels = watershed(-D, markers, mask=img_bin, connectivity=8)
 
     print("[INFO] {} unique segments found".format(len(np.unique(labels)) - 1))
     idx = 0
@@ -453,6 +740,39 @@ def deskew_v2(img):
     M = np.float32([[1, skew, -0.5 * img.shape[0] * skew], [0, 1, 0]])
     img = cv2.warpAffine(img, M, (img.shape[0], img.shape[1]), flags=affine_flags)
     return img
+
+
+def correct_skew(image, ):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+
+
+def deskew_v3(img, W, H):
+    delta = 0.05
+    limit = 5
+
+    def determine_score(arr, angle):
+        data = inter.rotate(arr, angle, reshape=False, order=0)
+        histogram = np.sum(data, axis=1)
+        score = np.sum((histogram[1:] - histogram[:-1]) ** 2)
+        return histogram, score
+
+    scores = []
+    angles = np.arange(-limit, limit + delta, delta)
+    for angle in angles:
+        histogram, score = determine_score(img, angle)
+        scores.append(score)
+
+    best_angle = angles[scores.index(max(scores))]
+
+    (h, w) = H, W
+    center = (w // 2, h // 2)
+    M = cv2.getRotationMatrix2D(center, best_angle, 1.0)
+    rotated = cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_CUBIC, \
+                             borderMode=cv2.BORDER_REPLICATE)
+
+    return rotated
+    # return rotated
 
 
 def segment_letters_v2(img):

@@ -146,7 +146,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #                                                                     #
         # You should also use your computed sample mean and variance together #
         # with the momentum variable to update the running mean and running   #
-        # variance, storing your result in the running_mean and running_var   #
+        # variance, storing your result_2 in the running_mean and running_var   #
         # variables.                                                          #
         #                                                                     #
         # Note that though you should be keeping track of the running         #
@@ -182,7 +182,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # TODO: Implement the test-time forward pass for batch normalization. #
         # Use the running mean and variance to normalize the incoming data,   #
         # then scale and shift the normalized data using gamma and beta.      #
-        # Store the result in the out variable.                               #
+        # Store the result_2 in the out variable.                               #
         #######################################################################
         # x-=running_mean
         x_norm = (x - running_mean) / np.sqrt(running_var + eps)
